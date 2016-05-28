@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.2.3
+VER=2.2.5
 
 PROJECT_NAME="acme.sh"
 
@@ -40,7 +40,7 @@ _info() {
   if [ -z "$2" ] ; then
     echo "[$(date)] $1"
   else
-    echo "[$(date)] $1"="'$2'"
+    echo "[$(date)] $1='$2'"
   fi
 }
 
@@ -67,13 +67,13 @@ _debug2() {
 _startswith(){
   _str="$1"
   _sub="$2"
-  echo $_str | grep ^$_sub >/dev/null 2>&1
+  echo "$_str" | grep "^$_sub" >/dev/null 2>&1
 }
 
 _contains(){
   _str="$1"
   _sub="$2"
-  echo $_str | grep $_sub >/dev/null 2>&1
+  echo "$_str" | grep "$_sub" >/dev/null 2>&1
 }
 
 _hasfield() {
@@ -106,9 +106,9 @@ _exists(){
     return 1
   fi
   if type command >/dev/null 2>&1 ; then
-    command -v $cmd >/dev/null 2>&1
+    command -v "$cmd" >/dev/null 2>&1
   else
-    type $cmd >/dev/null 2>&1
+    type "$cmd" >/dev/null 2>&1
   fi
   ret="$?"
   _debug2 "$cmd exists=$ret"
@@ -124,27 +124,27 @@ _h_char_2_dec() {
   _ch=$1
   case "${_ch}" in
     a|A)
-      echo -n 10
+      printf "10"
         ;;
     b|B)
-      echo -n 11
+      printf "11"
         ;;
     c|C)
-      echo -n 12
+      printf "12"
         ;;
     d|D)
-      echo -n 13
+      printf "13"
         ;;
     e|E)
-      echo -n 14
+      printf "14"
         ;;
     f|F)
-      echo -n 15
+      printf "15"
         ;;
     *)
-      echo -n $_ch
+      printf "%s" "$_ch"
         ;;
-  esac       
+  esac
 
 }
 
@@ -157,21 +157,21 @@ _h2b() {
   fi
   _debug uselet "$uselet"
   _debug _URGLY_PRINTF "$_URGLY_PRINTF"
-  while [ '1' ] ; do
+  while true ; do
     if [ -z "$_URGLY_PRINTF" ] ; then
-      h=$(printf $hex | cut -c $i-$j)
+      h="$(printf $hex | cut -c $i-$j)"
       if [ -z "$h" ] ; then
         break;
       fi
       printf "\x$h"
     else
-      ic=$(printf $hex | cut -c $i)
-      jc=$(printf $hex | cut -c $j)
+      ic="$(printf $hex | cut -c $i)"
+      jc="$(printf $hex | cut -c $j)"
       if [ -z "$ic$jc" ] ; then
         break;
       fi
-      ic="$(_h_char_2_dec $ic)"
-      jc="$(_h_char_2_dec $jc)"
+      ic="$(_h_char_2_dec "$ic")"
+      jc="$(_h_char_2_dec "$jc")"
       printf '\'"$(printf %o "$(_math $ic \* 16 + $jc)")"
     fi
     if [ "$uselet" ] ; then
@@ -198,7 +198,7 @@ _sed_i() {
     sed -i "$options" "$filename"
   else
     _debug "No -i support in sed"
-    text="$(cat $filename)"
+    text="$(cat "$filename")"
     echo "$text" | sed "$options" > "$filename"
   fi
 }
@@ -213,23 +213,23 @@ _getfile() {
     return 1
   fi
   
-  i="$(grep -n --  "$startline"  $filename | cut -d : -f 1)"
+  i="$(grep -n --  "$startline"  "$filename" | cut -d : -f 1)"
   if [ -z "$i" ] ; then
     _err "Can not find start line: $startline"
     return 1
   fi
-  i="$(_math $i + 1)"
-  _debug i $i
+  i="$(_math "$i" + 1)"
+  _debug i "$i"
   
-  j="$(grep -n --  "$endline"  $filename | cut -d : -f 1)"
+  j="$(grep -n --  "$endline"  "$filename" | cut -d : -f 1)"
   if [ -z "$j" ] ; then
     _err "Can not find end line: $endline"
     return 1
   fi
-  j="$(_math $j - 1)"
-  _debug j $j
+  j="$(_math "$j" - 1)"
+  _debug j "$j"
   
-  sed -n $i,${j}p  "$filename"
+  sed -n "$i,${j}p"  "$filename"
 
 }
 
@@ -293,7 +293,7 @@ _ss() {
   
   if _exists "ss" ; then
     _debug "Using: ss"
-    ss -ntpl | grep :$_port" "
+    ss -ntpl | grep ":$_port "
     return 0
   fi
 
@@ -301,12 +301,12 @@ _ss() {
     _debug "Using: netstat"
     if netstat -h 2>&1 | grep "\-p proto" >/dev/null ; then
       #for windows version netstat tool
-      netstat -anb -p tcp | grep "LISTENING" | grep :$_port" "
+      netstat -anb -p tcp | grep "LISTENING" | grep ":$_port "
     else
       if netstat -help 2>&1 | grep "\-p protocol" >/dev/null ; then
-        netstat -an -p tcp | grep LISTEN | grep :$_port" "
+        netstat -an -p tcp | grep LISTEN | grep ":$_port "
       else
-        netstat -ntpl | grep :$_port" "
+        netstat -ntpl | grep ":$_port "
       fi
     fi
     return 0
@@ -434,11 +434,11 @@ createDomainKey() {
 createCSR() {
   _info "Creating csr"
   if [ -z "$1" ] ; then
-    echo Usage: $PROJECT_ENTRY --createCSR -d domain1.com [-d domain2.com  -d domain3.com ... ]
+    echo "Usage: $PROJECT_ENTRY --createCSR -d domain1.com [-d domain2.com  -d domain3.com ... ]"
     return
   fi
   domain=$1
-  _initpath $domain
+  _initpath "$domain"
   
   domainlist=$2
   
@@ -449,7 +449,7 @@ createCSR() {
   
   if [ -z "$domainlist" ] || [ "$domainlist" = "no" ]; then
     #single domain
-    _info "Single domain" $domain
+    _info "Single domain" "$domain"
     printf "[ req_distinguished_name ]\n[ req ]\ndistinguished_name = req_distinguished_name\n" > "$DOMAIN_SSL_CONF"
     openssl req -new -sha256 -key "$CERT_KEY_PATH" -subj "/CN=$domain" -config "$DOMAIN_SSL_CONF" -out "$CSR_PATH"
   else
@@ -478,6 +478,10 @@ _time2str() {
     return
   fi
   
+}
+
+_normalizeJson() {
+  sed "s/\" *: *\([\"{\[]\)/\":\1/g" | sed "s/^ *\([^ ]\)/\1/" | tr -d "\r\n"
 }
 
 _stat() {
@@ -513,7 +517,7 @@ _calcjwk() {
     
     modulus=$(openssl rsa -in $keyfile -modulus -noout | cut -d '=' -f 2 )
     _debug2 modulus "$modulus"
-    n=$(echo -n $modulus| _h2b | _base64 | _urlencode )
+    n="$(printf "%s" "$modulus"| _h2b | _base64 | _urlencode )"
     jwk='{"e": "'$e'", "kty": "RSA", "n": "'$n'"}'
     _debug2 jwk "$jwk"
     
@@ -523,36 +527,36 @@ _calcjwk() {
     _debug "EC key"
     EC_SIGN="1"
     crv="$(openssl ec  -in $keyfile  -noout -text 2>/dev/null | grep "^NIST CURVE:" | cut -d ":" -f 2 | tr -d " \r\n")"
-    _debug2 crv $crv
+    _debug2 crv "$crv"
     
     pubi="$(openssl ec  -in $keyfile  -noout -text 2>/dev/null | grep -n pub: | cut -d : -f 1)"
     pubi=$(_math $pubi + 1)
-    _debug2 pubi $pubi
+    _debug2 pubi "$pubi"
     
     pubj="$(openssl ec  -in $keyfile  -noout -text 2>/dev/null | grep -n "ASN1 OID:"  | cut -d : -f 1)"
     pubj=$(_math $pubj + 1)
-    _debug2 pubj $pubj
+    _debug2 pubj "$pubj"
     
     pubtext="$(openssl ec  -in $keyfile  -noout -text 2>/dev/null | sed  -n "$pubi,${pubj}p" | tr -d " \n\r")"
     _debug2 pubtext "$pubtext"
     
     xlen="$(printf "$pubtext" | tr -d ':' | wc -c)"
     xlen=$(_math $xlen / 4)
-    _debug2 xlen $xlen
+    _debug2 xlen "$xlen"
 
-    xend=$(_math $xend + 1)
+    xend=$(_math "$xend" + 1)
     x="$(printf $pubtext | cut -d : -f 2-$xend)"
-    _debug2 x $x
+    _debug2 x "$x"
     
     x64="$(printf $x | tr -d : | _h2b | _base64 | _urlencode)"
-    _debug2 x64 $x64
+    _debug2 x64 "$x64"
 
-    xend=$(_math $xend + 1)
+    xend=$(_math "$xend" + 1)
     y="$(printf $pubtext | cut -d : -f $xend-10000)"
-    _debug2 y $y
+    _debug2 y "$y"
     
     y64="$(printf $y | tr -d : | _h2b | _base64 | _urlencode)"
-    _debug2 y64 $y64
+    _debug2 y64 "$y64"
    
     jwk='{"kty": "EC", "crv": "'$crv'", "x": "'$x64'", "y": "'$y64'"}'
     _debug2 jwk "$jwk"
@@ -567,48 +571,63 @@ _calcjwk() {
 
   _debug2 HEADER "$HEADER"
 }
-# body  url [needbase64]
+# body  url [needbase64] [POST|PUT]
 _post() {
   body="$1"
   url="$2"
   needbase64="$3"
+  httpmethod="$4"
 
+  if [ -z "$httpmethod" ] ; then
+    httpmethod="POST"
+  fi
+  _debug $httpmethod
+  _debug "url" "$url"
   if _exists "curl" ; then
-    CURL="$CURL --dump-header $HTTP_HEADER "
+    _CURL="$CURL --dump-header $HTTP_HEADER "
     if [ "$needbase64" ] ; then
-      response="$($CURL -A "User-Agent: $USER_AGENT" -X POST --data "$body" $url | _base64)"
+      response="$($_CURL -A "User-Agent: $USER_AGENT" -X $httpmethod -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" --data "$body" "$url" | _base64)"
     else
-      response="$($CURL -A "User-Agent: $USER_AGENT" -X POST --data "$body" $url)"
+      response="$($_CURL -A "User-Agent: $USER_AGENT" -X $httpmethod -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" --data "$body" "$url" )"
     fi
   else
     if [ "$needbase64" ] ; then
-      response="$($WGET -S -O - --user-agent="$USER_AGENT" --post-data="$body" $url 2>"$HTTP_HEADER" | _base64)"
+      if [ "$httpmethod"="POST" ] ; then
+        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --post-data="$body" "$url" 2>"$HTTP_HEADER" | _base64)"
+      else
+        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --method $httpmethod --body-data="$body" "$url" 2>"$HTTP_HEADER" | _base64)"
+      fi
     else
-      response="$($WGET -S -O - --user-agent="$USER_AGENT" --post-data="$body" $url 2>"$HTTP_HEADER")"
+      if [ "$httpmethod"="POST" ] ; then
+        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --post-data="$body" "$url" 2>"$HTTP_HEADER")"
+      else
+        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --method $httpmethod --body-data="$body" "$url" 2>"$HTTP_HEADER")"
+      fi
     fi
     _sed_i "s/^ *//g" "$HTTP_HEADER"
   fi
-  echo -n "$response"
+  printf "%s" "$response"
   
 }
 
 # url getheader
 _get() {
+  _debug GET
   url="$1"
   onlyheader="$2"
   _debug url $url
   if _exists "curl" ; then
     if [ "$onlyheader" ] ; then
-      $CURL -I -A "User-Agent: $USER_AGENT" $url
+      $CURL -I -A "User-Agent: $USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
     else
-      $CURL -A "User-Agent: $USER_AGENT" $url
+      $CURL    -A "User-Agent: $USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
     fi
   else
     _debug "WGET" "$WGET"
     if [ "$onlyheader" ] ; then
-      eval $WGET --user-agent=\"$USER_AGENT\" -S -O /dev/null $url 2>&1 | sed 's/^[ ]*//g'
+      $WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" -S -O /dev/null $url 2>&1 | sed 's/^[ ]*//g'
     else
-      eval $WGET --user-agent=\"$USER_AGENT\" -O - $url
+      $WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1"    -O - $url
     fi
   fi
   ret=$?
@@ -652,7 +671,11 @@ _send_signed_request() {
   _debug2 body "$body"
   
 
-  response="$(_post "$body" $url "$needbase64" )"
+  response="$(_post "$body" $url "$needbase64")"
+  
+  _debug2 original "$response"
+  
+  response="$( echo "$response" | _normalizeJson )"
 
   responseHeaders="$(cat $HTTP_HEADER)"
   
@@ -840,7 +863,7 @@ _initpath() {
   dp="$LE_WORKING_DIR/curl.dump"
   CURL="curl -L --silent"
   if [ "$DEBUG" ] && [ "$DEBUG" -ge "2" ] ; then
-    CURL="$CURL -L --trace-ascii $dp "
+    CURL="$CURL --trace-ascii $dp "
   fi
 
   _DEFAULT_ACCOUNT_KEY_PATH="$LE_WORKING_DIR/account.key"
@@ -901,16 +924,20 @@ _apachePath() {
     return 1
   fi
   httpdconfname="$(apachectl -V | grep SERVER_CONFIG_FILE= | cut -d = -f 2 | tr -d '"' )"
+  _debug httpdconfname "$httpdconfname"
   if _startswith "$httpdconfname" '/' ; then
     httpdconf="$httpdconfname"
     httpdconfname="$(basename $httpdconfname)"
   else
     httpdroot="$(apachectl -V | grep HTTPD_ROOT= | cut -d = -f 2 | tr -d '"' )"
+    _debug httpdroot "$httpdroot"
     httpdconf="$httpdroot/$httpdconfname"
+    httpdconfname="$(basename $httpdconfname)"
   fi
-
-  if [ ! -f $httpdconf ] ; then
-    _err "Apache Config file not found" $httpdconf
+  _debug httpdconf "$httpdconf"
+  _debug httpdconfname "$httpdconfname"
+  if [ ! -f "$httpdconf" ] ; then
+    _err "Apache Config file not found" "$httpdconf"
     return 1
   fi
   return 0
@@ -948,8 +975,12 @@ _setApache() {
   fi
 
   #backup the conf
-  _debug "Backup apache config file" $httpdconf
-  cp $httpdconf $APACHE_CONF_BACKUP_DIR/
+  _debug "Backup apache config file" "$httpdconf"
+  if ! cp "$httpdconf" "$APACHE_CONF_BACKUP_DIR/" ; then
+    _err "Can not backup apache config file, so abort. Don't worry, your apache config is not changed."
+    _err "This might be a bug of $PROJECT_NAME , pleae report issue: $PROJECT"
+    return 1
+  fi
   _info "JFYI, Config file $httpdconf is backuped to $APACHE_CONF_BACKUP_DIR/$httpdconfname"
   _info "In case there is an error that can not be restored automatically, you may try restore it yourself."
   _info "The backup file will be deleted on sucess, just forget it."
@@ -961,14 +992,14 @@ _setApache() {
   apacheMajer="$(echo "$apacheVer" | cut -d . -f 1)"
   apacheMinor="$(echo "$apacheVer" | cut -d . -f 2)"
 
-  if [ "$apacheVer" ] && [ "$apacheMajer" -ge "2" ] && [ "$apacheMinor" -ge "4" ] ; then
+  if [ "$apacheVer" ] && [ "$apacheMajer$apacheMinor" -ge "24" ] ; then
     echo "
 Alias /.well-known/acme-challenge  $ACME_DIR
 
 <Directory $ACME_DIR >
 Require all granted
 </Directory>
-  " >> $httpdconf  
+  " >> "$httpdconf"
   else
     echo "
 Alias /.well-known/acme-challenge  $ACME_DIR
@@ -977,7 +1008,7 @@ Alias /.well-known/acme-challenge  $ACME_DIR
 Order allow,deny
 Allow from all
 </Directory>
-  " >> $httpdconf
+  " >> "$httpdconf"
   fi
 
   
@@ -1061,8 +1092,9 @@ issue() {
   _initpath $Le_Domain
 
   if [ -f "$DOMAIN_CONF" ] ; then
-    Le_NextRenewTime=$(grep "^Le_NextRenewTime=" "$DOMAIN_CONF" | cut -d '=' -f 2)
-    if [ -z "$FORCE" ] && [ "$Le_NextRenewTime" ] && [ "$(date -u "+%s" )" -lt "$Le_NextRenewTime" ] ; then 
+    Le_NextRenewTime=$(grep "^Le_NextRenewTime=" "$DOMAIN_CONF" | cut -d '=' -f 2 | tr -d "'\"")
+    _debug Le_NextRenewTime "$Le_NextRenewTime"
+    if [ -z "$FORCE" ] && [ "$Le_NextRenewTime" ] && [ $(date -u "+%s" ) -lt $Le_NextRenewTime ] ; then 
       _info "Skip, Next renewal time is: $(grep "^Le_NextRenewTimeStr" "$DOMAIN_CONF" | cut -d '=' -f 2)"
       return 2
     fi
@@ -1203,7 +1235,11 @@ issue() {
 
       entry="$(printf "$response" | egrep -o  '\{[^{]*"type":"'$vtype'"[^}]*')"
       _debug entry "$entry"
-
+      if [ -z "$entry" ] ; then
+        _err "Error, can not get domain token $d"
+        _clearup
+        return 1
+      fi
       token="$(printf "$entry" | egrep -o '"token":"[^"]*' | cut -d : -f 2 | tr -d '"')"
       _debug token $token
       
@@ -1353,11 +1389,11 @@ issue() {
 
         _debug wellknown_path "$wellknown_path"
 
-        token="$(printf "$keyauthorization" | cut -d '.' -f 1)"
+        token="$(printf "%s" "$keyauthorization" | cut -d '.' -f 1)"
         _debug "writing token:$token to $wellknown_path/$token"
 
         mkdir -p "$wellknown_path"
-        printf "$keyauthorization" > "$wellknown_path/$token"
+        printf "%s" "$keyauthorization" > "$wellknown_path/$token"
         if [ ! "$usingApache" ] ; then
           webroot_owner=$(_stat $_currentRoot)
           _debug "Changing owner/group of .well-known to $webroot_owner"
@@ -1381,7 +1417,7 @@ issue() {
       MAX_RETRY_TIMES=30
     fi
     
-    while [ "1" ] ; do
+    while true ; do
       waittimes=$(_math $waittimes + 1)
       if [ "$waittimes" -ge "$MAX_RETRY_TIMES" ] ; then
         _err "$d:Timeout"
@@ -1393,7 +1429,7 @@ issue() {
       _debug "sleep 5 secs to verify"
       sleep 5
       _debug "checking"
-      response="$(_get $uri)"
+      response="$(_get $uri | _normalizeJson )"
       if [ "$?" != "0" ] ; then
         _err "$d:Verify error:$response"
         _clearupwebbroot "$_currentRoot" "$removelevel" "$token"
@@ -1458,7 +1494,7 @@ issue() {
   
 
   if [ -z "$Le_LinkCert" ] ; then
-    response="$(echo $response | _dbase64 "multiline" )"
+    response="$(echo $response | _dbase64 "multiline" | _normalizeJson )"
     _err "Sign failed: $(echo "$response" | grep -o  '"detail":"[^"]*"')"
     return 1
   fi
@@ -1873,6 +1909,48 @@ _setShebang() {
   rm -f "$_file.tmp"  
 }
 
+_installalias() {
+  _initpath
+
+  _envfile="$LE_WORKING_DIR/$PROJECT_ENTRY.env"
+  if [ "$_upgrading" ] && [ "$_upgrading" = "1" ] ; then
+    echo "$(cat $_envfile)" | sed "s|^LE_WORKING_DIR.*$||" > "$_envfile"
+    echo "$(cat $_envfile)" | sed "s|^alias le.*$||" > "$_envfile"
+    echo "$(cat $_envfile)" | sed "s|^alias le.sh.*$||" > "$_envfile"
+  fi
+
+  _setopt "$_envfile" "export LE_WORKING_DIR" "=" "\"$LE_WORKING_DIR\""
+  _setopt "$_envfile" "alias $PROJECT_ENTRY" "=" "\"$LE_WORKING_DIR/$PROJECT_ENTRY\""
+
+  _profile="$(_detect_profile)"
+  if [ "$_profile" ] ; then
+    _debug "Found profile: $_profile"
+    _setopt "$_profile" ". \"$_envfile\""
+    _info "OK, Close and reopen your terminal to start using $PROJECT_NAME"
+  else
+    _info "No profile is found, you will need to go into $LE_WORKING_DIR to use $PROJECT_NAME"
+  fi
+  
+
+  #for csh
+  _cshfile="$LE_WORKING_DIR/$PROJECT_ENTRY.csh"
+  _csh_profile="$HOME/.cshrc"
+  if [ -f "$_csh_profile" ] ; then
+    _setopt "$_cshfile" "setenv LE_WORKING_DIR" " " "\"$LE_WORKING_DIR\""
+    _setopt "$_cshfile" "alias $PROJECT_ENTRY" " " "\"$LE_WORKING_DIR/$PROJECT_ENTRY\""
+    _setopt "$_csh_profile"  "source \"$_cshfile\""
+  fi
+  
+  #for tcsh
+  _tcsh_profile="$HOME/.tcshrc"
+  if [ -f "$_tcsh_profile" ] ; then
+    _setopt "$_cshfile" "setenv LE_WORKING_DIR" " " "\"$LE_WORKING_DIR\""
+    _setopt "$_cshfile" "alias $PROJECT_ENTRY" " " "\"$LE_WORKING_DIR/$PROJECT_ENTRY\""
+    _setopt "$_tcsh_profile"  "source \"$_cshfile\""
+  fi
+
+}
+
 install() {
 
   if ! _initpath ; then
@@ -1920,33 +1998,11 @@ install() {
 
   _info "Installed to $LE_WORKING_DIR/$PROJECT_ENTRY"
 
-  _envfile="$LE_WORKING_DIR/$PROJECT_ENTRY.env"
-  if [ "$_upgrading" ] && [ "$_upgrading" = "1" ] ; then
-    echo "$(cat $_envfile)" | sed "s|^LE_WORKING_DIR.*$||" > "$_envfile"
-    echo "$(cat $_envfile)" | sed "s|^alias le.*$||" > "$_envfile"
-    echo "$(cat $_envfile)" | sed "s|^alias le.sh.*$||" > "$_envfile"
-  fi
-
-  _setopt "$_envfile" "LE_WORKING_DIR" "=" "\"$LE_WORKING_DIR\""
-  _setopt "$_envfile" "alias $PROJECT_ENTRY" "=" "\"$LE_WORKING_DIR/$PROJECT_ENTRY\""
-
-  _profile="$(_detect_profile)"
-  if [ "$_profile" ] ; then
-    _debug "Found profile: $_profile"
-    _setopt "$_profile" ". \"$LE_WORKING_DIR/$PROJECT_NAME.env\""
-    _info "OK, Close and reopen your terminal to start using $PROJECT_NAME"
-  else
-    _info "No profile is found, you will need to go into $LE_WORKING_DIR to use $PROJECT_NAME"
-  fi
+  _installalias
 
   if [ -d "dnsapi" ] ; then
     mkdir -p $LE_WORKING_DIR/dnsapi
     cp  dnsapi/* $LE_WORKING_DIR/dnsapi/
-  fi
-  
-  #to keep compatible mv the .acc file to .key file 
-  if [ -f "$LE_WORKING_DIR/account.acc" ] ; then
-    mv "$LE_WORKING_DIR/account.acc" "$LE_WORKING_DIR/account.key"
   fi
 
   if [ ! -f "$ACCOUNT_CONF_PATH" ] ; then
@@ -1991,9 +2047,21 @@ uninstall() {
   _profile="$(_detect_profile)"
   if [ "$_profile" ] ; then
     text="$(cat $_profile)"
-    echo "$text" | sed "s|^[.] \"$LE_WORKING_DIR/$PROJECT_NAME.env\"$||" > "$_profile"
+    echo "$text" | sed "s|^.*\"$LE_WORKING_DIR/$PROJECT_NAME.env\"$||" > "$_profile"
   fi
 
+  _csh_profile="$HOME/.cshrc"
+  if [ -f "$_csh_profile" ] ; then
+    text="$(cat $_csh_profile)"
+    echo "$text" | sed "s|^.*\"$LE_WORKING_DIR/$PROJECT_NAME.csh\"$||" > "$_csh_profile"
+  fi
+  
+  _tcsh_profile="$HOME/.tcshrc"
+  if [ -f "$_tcsh_profile" ] ; then
+    text="$(cat $_tcsh_profile)"
+    echo "$text" | sed "s|^.*\"$LE_WORKING_DIR/$PROJECT_NAME.csh\"$||" > "$_tcsh_profile"
+  fi
+  
   rm -f $LE_WORKING_DIR/$PROJECT_ENTRY
   _info "The keys and certs are in $LE_WORKING_DIR, you can remove them by yourself."
 
@@ -2354,6 +2422,10 @@ _process() {
       return 1
     ;;
   esac
+  _ret="$?"
+  if [ "$_ret" != "0" ] ; then
+    return $_ret
+  fi
   
   if [ "$_useragent" ] ; then
     _saveaccountconf "USER_AGENT" "$_useragent"
