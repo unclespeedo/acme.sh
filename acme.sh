@@ -29,7 +29,6 @@ if [ -z "$AGREEMENT" ] ; then
 fi
 
 
-
 _URGLY_PRINTF=""
 if [ "$(printf '\x41')" != 'A' ] ; then
   _URGLY_PRINTF=1
