@@ -2,12 +2,16 @@ acme.sh (1.1-1) UNRELEASED; urgency=low
  
   * GFYS
 
+-- Ryan Speed <ryan@liquify.ca> Fri, 27 May 2016 23:36:01 -0700
+
 acme.sh (1.0-2) UNRELEASED; urgency=medium
 
   * Minor bug fixes 
+
+-- Ryan Speed <ryan@liquify.ca> Fri, 27 May 2016 13:36:01 -0700
 
 acme.sh (1.0-1) UNRELEASED; urgency=medium
 
   * Initial release. INFRA-39
 
--- Ryan Speed <ryan@liquify.ca> Fri, 27 May 2016 23:36:01 -0700
+-- Ryan Speed <ryan@liquify.ca> Fri, 27 May 2016 12:36:01 -0700
