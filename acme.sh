@@ -86,91 +86,9 @@ RENEW_SKIP=2
 B64CONF_START="__ACME_BASE64__START_"
 B64CONF_END="__ACME_BASE64__END_"
 
-ECC_SEP="_"
-ECC_SUFFIX="${ECC_SEP}ecc"
-
-LOG_LEVEL_1=1
-LOG_LEVEL_2=2
-LOG_LEVEL_3=3
-DEFAULT_LOG_LEVEL="$LOG_LEVEL_1"
-
-DEBUG_LEVEL_1=1
-DEBUG_LEVEL_2=2
-DEBUG_LEVEL_3=3
-DEBUG_LEVEL_DEFAULT=$DEBUG_LEVEL_1
-DEBUG_LEVEL_NONE=0
-
-DOH_CLOUDFLARE=1
-DOH_GOOGLE=2
-
-HIDDEN_VALUE="[hidden](please add '--output-insecure' to see this value)"
-
-SYSLOG_ERROR="user.error"
-SYSLOG_INFO="user.info"
-SYSLOG_DEBUG="user.debug"
-
-#error
-SYSLOG_LEVEL_ERROR=3
-#info
-SYSLOG_LEVEL_INFO=6
-#debug
-SYSLOG_LEVEL_DEBUG=7
-#debug2
-SYSLOG_LEVEL_DEBUG_2=8
-#debug3
-SYSLOG_LEVEL_DEBUG_3=9
-
-SYSLOG_LEVEL_DEFAULT=$SYSLOG_LEVEL_ERROR
-#none
-SYSLOG_LEVEL_NONE=0
-
-NOTIFY_LEVEL_DISABLE=0
-NOTIFY_LEVEL_ERROR=1
-NOTIFY_LEVEL_RENEW=2
-NOTIFY_LEVEL_SKIP=3
-
-NOTIFY_LEVEL_DEFAULT=$NOTIFY_LEVEL_RENEW
-
-NOTIFY_MODE_BULK=0
-NOTIFY_MODE_CERT=1
-
-NOTIFY_MODE_DEFAULT=$NOTIFY_MODE_BULK
-
-_DEBUG_WIKI="https://github.com/acmesh-official/acme.sh/wiki/How-to-debug-acme.sh"
-
-_PREPARE_LINK="https://github.com/acmesh-official/acme.sh/wiki/Install-preparations"
-
-_STATELESS_WIKI="https://github.com/acmesh-official/acme.sh/wiki/Stateless-Mode"
-
-_DNS_ALIAS_WIKI="https://github.com/acmesh-official/acme.sh/wiki/DNS-alias-mode"
-
-_DNS_MANUAL_WIKI="https://github.com/acmesh-official/acme.sh/wiki/dns-manual-mode"
-
-_DNS_API_WIKI="https://github.com/acmesh-official/acme.sh/wiki/dnsapi"
-
-_NOTIFY_WIKI="https://github.com/acmesh-official/acme.sh/wiki/notify"
-
-_SUDO_WIKI="https://github.com/acmesh-official/acme.sh/wiki/sudo"
-
-_REVOKE_WIKI="https://github.com/acmesh-official/acme.sh/wiki/revokecert"
-
-_ZEROSSL_WIKI="https://github.com/acmesh-official/acme.sh/wiki/ZeroSSL.com-CA"
-
-_SERVER_WIKI="https://github.com/acmesh-official/acme.sh/wiki/Server"
-
-_PREFERRED_CHAIN_WIKI="https://github.com/acmesh-official/acme.sh/wiki/Preferred-Chain"
-
-_DNSCHECK_WIKI="https://github.com/acmesh-official/acme.sh/wiki/dnscheck"
-
-_DNS_MANUAL_ERR="The dns manual mode can not renew automatically, you must issue it again manually. You'd better use the other modes instead."
-
-_DNS_MANUAL_WARN="It seems that you are using dns manual mode. please take care: $_DNS_MANUAL_ERR"
-
-_DNS_MANUAL_ERROR="It seems that you are using dns manual mode. Read this link first: $_DNS_MANUAL_WIKI"
-
-__INTERACTIVE=""
-if [ -t 1 ]; then
-  __INTERACTIVE="1"
+_URGLY_PRINTF=""
+if [ "$(printf '\x41')" != 'A' ] ; then
+  _URGLY_PRINTF=1
 fi
 
 __green() {
