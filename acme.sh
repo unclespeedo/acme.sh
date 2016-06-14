@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.2.5
+VER=2.2.6
 
 PROJECT_NAME="acme.sh"
 
@@ -584,12 +584,15 @@ _post() {
   _debug "url" "$url"
   if _exists "curl" ; then
     _CURL="$CURL --dump-header $HTTP_HEADER "
+    _debug "_CURL" "$_CURL"
     if [ "$needbase64" ] ; then
       response="$($_CURL -A "User-Agent: $USER_AGENT" -X $httpmethod -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" --data "$body" "$url" | _base64)"
     else
       response="$($_CURL -A "User-Agent: $USER_AGENT" -X $httpmethod -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" --data "$body" "$url" )"
     fi
+    _ret="$?"
   else
+    _debug "WGET" "$WGET"
     if [ "$needbase64" ] ; then
       if [ "$httpmethod"="POST" ] ; then
         response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --post-data="$body" "$url" 2>"$HTTP_HEADER" | _base64)"
@@ -603,10 +606,12 @@ _post() {
         response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --method $httpmethod --body-data="$body" "$url" 2>"$HTTP_HEADER")"
       fi
     fi
+    _ret="$?"
     _sed_i "s/^ *//g" "$HTTP_HEADER"
   fi
+  _debug "_ret" "$_ret"
   printf "%s" "$response"
-  
+  return $_ret
 }
 
 # url getheader
@@ -616,11 +621,13 @@ _get() {
   onlyheader="$2"
   _debug url $url
   if _exists "curl" ; then
+    _debug "CURL" "$CURL"
     if [ "$onlyheader" ] ; then
       $CURL -I -A "User-Agent: $USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
     else
       $CURL    -A "User-Agent: $USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
     fi
+    ret=$?
   else
     _debug "WGET" "$WGET"
     if [ "$onlyheader" ] ; then
@@ -628,8 +635,9 @@ _get() {
     else
       $WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1"    -O - $url
     fi
+    ret=$?
   fi
-  ret=$?
+  _debug "ret" "$ret"
   return $ret
 }
 
@@ -653,7 +661,16 @@ _send_signed_request() {
   _debug2 payload64 $payload64
   
   nonceurl="$API/directory"
-  nonce="$(_get $nonceurl "onlyheader" | grep -o "Replay-Nonce:.*$" | head -1 | tr -d "\r\n" | cut -d ' ' -f 2)"
+  _headers="$(_get $nonceurl "onlyheader")"
+  
+  if [ "$?" != "0" ] ; then
+    _err "Can not connect to $nonceurl to get nonce."
+    return 1
+  fi
+  
+  _debug2 _headers "$_headers"
+  
+  nonce="$( echo "$_headers" | grep "Replay-Nonce:" | head -1 | tr -d "\r\n " | cut -d ':' -f 2)"
 
   _debug nonce "$nonce"
   
@@ -671,7 +688,10 @@ _send_signed_request() {
   
 
   response="$(_post "$body" $url "$needbase64")"
-  
+  if [ "$?" != "0" ] ; then
+    _err "Can not post to $url."
+    return 1
+  fi
   _debug2 original "$response"
   
   response="$( echo "$response" | _normalizeJson )"
@@ -774,6 +794,7 @@ _startserver() {
   fi
 
   _debug "_NC" "$_NC"
+  _debug Le_HTTPPort "$Le_HTTPPort"
 #  while true ; do
     if [ "$DEBUG" ] ; then
       if ! printf "HTTP/1.1 200 OK\r\n\r\n$content" | $_NC -p $Le_HTTPPort ; then
@@ -958,7 +979,7 @@ _restoreApache() {
   
   cat "$APACHE_CONF_BACKUP_DIR/$httpdconfname" > "$httpdconf"
   _debug "Restored: $httpdconf."
-  if ! apachectl  -t ; then
+  if ! apachectl  -t >/dev/null 2>&1 ; then
     _err "Sorry, restore apache config error, please contact me."
     return 1;
   fi
@@ -1011,7 +1032,7 @@ Allow from all
   fi
 
   
-  if ! apachectl  -t ; then
+  if ! apachectl  -t >/dev/null 2>&1; then
     _err "Sorry, apache config error, please contact me."
     _restoreApache
     return 1;
@@ -1120,8 +1141,9 @@ issue() {
     
     if [ -z "$Le_HTTPPort" ] ; then
       Le_HTTPPort=80
-    fi
-    _savedomainconf "Le_HTTPPort"  "$Le_HTTPPort"
+    else
+      _savedomainconf "Le_HTTPPort"  "$Le_HTTPPort"
+    fi    
     
     netprc="$(_ss "$Le_HTTPPort" | grep "$Le_HTTPPort")"
     if [ "$netprc" ] ; then
@@ -1225,7 +1247,13 @@ issue() {
         vtype="$VTYPE_DNS"
       fi
       _info "Getting token for domain" $d
-      _send_signed_request "$API/acme/new-authz" "{\"resource\": \"new-authz\", \"identifier\": {\"type\": \"dns\", \"value\": \"$d\"}}"
+
+      if ! _send_signed_request "$API/acme/new-authz" "{\"resource\": \"new-authz\", \"identifier\": {\"type\": \"dns\", \"value\": \"$d\"}}" ; then
+        _err "Can not get domain token."
+        _clearup
+        return 1
+      fi
+
       if [ ! -z "$code" ] && [ ! "$code" = '201' ] ; then
         _err "new-authz error: $response"
         _clearup
@@ -1336,8 +1364,14 @@ issue() {
   fi
   
   if [ "$dnsadded" = '1' ] ; then
-    _info "Sleep 60 seconds for the txt records to take effect"
-    sleep 60
+    if [ -z "$Le_DNSSleep" ] ; then
+      Le_DNSSleep=60
+    else
+      _savedomainconf "Le_DNSSleep"  "$Le_DNSSleep"
+    fi
+
+    _info "Sleep $Le_DNSSleep seconds for the txt records to take effect"
+    sleep $Le_DNSSleep
   fi
   
   _debug "ok, let's start to verify"
@@ -1402,7 +1436,12 @@ issue() {
       fi
     fi
     
-    _send_signed_request $uri "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}"
+    if ! _send_signed_request $uri "{\"resource\": \"challenge\", \"keyAuthorization\": \"$keyauthorization\"}" ; then
+      _err "$d:Can not get challenge: $response"
+      _clearupwebbroot "$_currentRoot" "$removelevel" "$token"
+      _clearup
+      return 1
+    fi
     
     if [ ! -z "$code" ] && [ ! "$code" = '202' ] ; then
       _err "$d:Challenge error: $response"
@@ -1428,13 +1467,17 @@ issue() {
       _debug "sleep 5 secs to verify"
       sleep 5
       _debug "checking"
-      response="$(_get $uri | _normalizeJson )"
+      response="$(_get $uri)"
       if [ "$?" != "0" ] ; then
         _err "$d:Verify error:$response"
         _clearupwebbroot "$_currentRoot" "$removelevel" "$token"
         _clearup
         return 1
       fi
+      _debug2 original "$response"
+      
+      response="$(echo "$response" | _normalizeJson )"
+      _debug2 response "$response"
       
       status=$(echo $response | egrep -o  '"status":"[^"]*' | cut -d : -f 2 | tr -d '"')
       if [ "$status" = "valid" ] ; then
@@ -1446,8 +1489,15 @@ issue() {
       fi
       
       if [ "$status" = "invalid" ] ; then
-         error=$(echo $response | egrep -o '"error":{[^}]*}' | grep -o '"detail":"[^"]*"' | cut -d '"' -f 4)
-        _err "$d:Verify error:$error"
+         error="$(echo $response | tr -d "\r\n" | egrep -o '"error":{[^}]*}')"
+         _debug2 error "$error"
+         errordetail="$(echo $error |  grep -o '"detail": *"[^"]*"' | cut -d '"' -f 4)"
+         _debug2 errordetail "$errordetail"
+         if [ "$errordetail" ] ; then
+           _err "$d:Verify error:$errordetail"
+         else
+           _err "$d:Verify error:$error"
+         fi
         _clearupwebbroot "$_currentRoot" "$removelevel" "$token"
         _clearup
         return 1;
@@ -1469,7 +1519,11 @@ issue() {
   _clearup
   _info "Verify finished, start to sign."
   der="$(_getfile "${CSR_PATH}" "${BEGIN_CSR}" "${END_CSR}" | tr -d "\r\n" | _urlencode)"
-  _send_signed_request "$API/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"
+  
+  if ! _send_signed_request "$API/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64" ; then
+    _err "Sign failed."
+    return 1
+  fi
   
   
   Le_LinkCert="$(grep -i -o '^Location.*$' $HTTP_HEADER | head -1 | tr -d "\r\n" | cut -d " " -f 2)"
@@ -1520,9 +1574,9 @@ issue() {
   
   if [ -z "$Le_RenewalDays" ] || [ "$Le_RenewalDays" -lt "0" ] || [ "$Le_RenewalDays" -gt "80" ] ; then
     Le_RenewalDays=80
-  fi
-  
-  _savedomainconf  "Le_RenewalDays"   "$Le_RenewalDays"
+  else
+    _savedomainconf  "Le_RenewalDays"   "$Le_RenewalDays"
+  fi  
 
   Le_NextRenewTime=$(_math $Le_CertCreateTime + $Le_RenewalDays \* 24 \* 60 \* 60)
   _savedomainconf "Le_NextRenewTime"   "$Le_NextRenewTime"
@@ -1581,6 +1635,31 @@ renewAll() {
     )
   done
   
+}
+
+
+list() {
+  local _raw="$1"
+  _initpath
+  
+  _sep="|"
+  if [ "$_raw" ] ; then
+    printf  "Main_Domain${_sep}SAN_Domains${_sep}Created${_sep}Renew\n"
+    for d in $(ls -F ${CERT_HOME}/ | grep [^.].*[.].*/$ ) ; do
+      d=$(echo $d | cut -d '/' -f 1)
+      (
+        _initpath $d
+        if [ -f "$DOMAIN_CONF" ] ; then
+          . "$DOMAIN_CONF"
+          printf "$Le_Domain${_sep}$Le_Alt${_sep}$Le_CertCreateTimeStr${_sep}$Le_NextRenewTimeStr\n"
+        fi
+      )
+    done
+  else
+    list "raw" | column -t -s "$_sep"  
+  fi
+
+
 }
 
 installcert() {
@@ -1982,7 +2061,7 @@ install() {
   _info "Installing to $LE_WORKING_DIR"
 
   if ! mkdir -p "$LE_WORKING_DIR" ; then
-    _err "Can not craete working dir: $LE_WORKING_DIR"
+    _err "Can not create working dir: $LE_WORKING_DIR"
     return 1
   fi
   
@@ -2090,6 +2169,7 @@ Commands:
   --renew, -r              Renew a cert.
   --renewAll               Renew all the certs
   --revoke                 Revoke a cert.
+  --list                   List all the certs
   --installcronjob         Install the cron job to renew certs, you don't need to call this. The 'install' command can automatically install the cron job.
   --uninstallcronjob       Uninstall the cron job. The 'uninstall' command can do this automatically.
   --cron                   Run cron job to renew all the certs.
@@ -2108,6 +2188,7 @@ Parameters:
   --standalone                      Use standalone mode.
   --apache                          Use apache mode.
   --dns [dns_cf|dns_dp|dns_cx|/path/to/api/file]   Use dns mode or dns api.
+  --dnssleep  [60]                  The time in seconds to wait for all the txt records to take effect in dns api mode. Default 60 seconds.
   
   --keylength, -k [2048]            Specifies the domain key length: 2048, 3072, 4096, 8192 or ec-256, ec-384.
   --accountkeylength, -ak [2048]    Specifies the account key length.
@@ -2123,12 +2204,13 @@ Parameters:
 
   --accountconf                     Specifies a customized account config file.
   --home                            Specifies the home dir for $PROJECT_NAME .
-  --certhome                        Specifies the home dir to save all the certs.
+  --certhome                        Specifies the home dir to save all the certs, only valid for '--install' command.
   --useragent                       Specifies the user agent string. it will be saved for future use too.
   --accountemail                    Specifies the account email for registering, Only valid for the '--install' command.
   --accountkey                      Specifies the account key path, Only valid for the '--install' command.
   --days                            Specifies the days to renew the cert when using '--issue' command. The max value is 80 days.
-  
+  --httpport                        Specifies the standalone listening port. Only valid if the server is behind a reverse proxy or load balancer.
+  --listraw                         Only used for '--list' command, list the certs in raw format.
   "
 }
 
@@ -2177,6 +2259,9 @@ _process() {
   _accountemail=""
   _accountkey=""
   _certhome=""
+  _httpport=""
+  _dnssleep=""
+  _listraw=""
   while [ ${#} -gt 0 ] ; do
     case "${1}" in
     
@@ -2209,6 +2294,9 @@ _process() {
     --revoke)
         _CMD="revoke"
         ;;
+    --list)
+        _CMD="list"
+        ;;
     --installcronjob)
         _CMD="installcronjob"
         ;;
@@ -2235,20 +2323,23 @@ _process() {
     --domain|-d)
         _dvalue="$2"
         
-        if [ -z "$_dvalue" ] || _startswith "$_dvalue" "-" ; then
-          _err "'$_dvalue' is not a valid domain for parameter '$1'"
-          return 1
-        fi
-        
-        if [ -z "$_domain" ] ; then
-          _domain="$_dvalue"
-        else
-          if [ "$_altdomains" = "no" ] ; then
-            _altdomains="$_dvalue"
+        if [ "$_dvalue" ] ; then
+          if _startswith "$_dvalue" "-" ; then
+            _err "'$_dvalue' is not a valid domain for parameter '$1'"
+            return 1
+          fi
+          
+          if [ -z "$_domain" ] ; then
+            _domain="$_dvalue"
           else
-            _altdomains="$_altdomains,$_dvalue"
+            if [ "$_altdomains" = "no" ] ; then
+              _altdomains="$_dvalue"
+            else
+              _altdomains="$_altdomains,$_dvalue"
+            fi
           fi
         fi
+        
         shift
         ;;
 
@@ -2303,6 +2394,12 @@ _process() {
           _webroot="$_webroot,$wvalue"
         fi
         ;;
+    --dnssleep)
+        _dnssleep="$2"
+        Le_DNSSleep="$_dnssleep"
+        shift
+        ;;
+        
     --keylength|-k)
         _keylength="$2"
         accountkeylength="$2"
@@ -2371,6 +2468,15 @@ _process() {
         Le_RenewalDays="$_days"
         shift
         ;;
+    --httpport )
+        _httpport="$2"
+        Le_HTTPPort="$_httpport"
+        shift
+        ;;
+    --listraw )
+        _listraw="raw"
+        ;;        
+        
     *)
         _err "Unknown parameter : $1"
         return 1
@@ -2398,6 +2504,9 @@ _process() {
       ;;
     revoke) 
       revoke "$_domain" 
+      ;;
+    list) 
+      list "$_listraw"
       ;;
     installcronjob) installcronjob ;;
     uninstallcronjob) uninstallcronjob ;;
