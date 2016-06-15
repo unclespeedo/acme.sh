@@ -14,4 +14,3 @@ Description: An ACME protocol client written purely in Shell (Unix shell) langua
  Purely written in Shell with no dependencies on python or Let's Encrypt official client.
  Just one script, to issue, renew and install your certificates automatically.
  DOES NOT require root/sudoer access.
- 
