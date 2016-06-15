@@ -1,5 +1,6 @@
 Source: acme.sh
 Maintainer: Liquify Builds <builds@liquify.ca>
+Build-Depends: debhelper (>= 8.0.0)
 Section: misc
 Priority: optional
 
