@@ -994,10 +994,22 @@ _setApache() {
     return 1
   fi
 
+  #test the conf first
+  _info "Checking if there is an error in the apache config file before starting."
+  _msg="$(apachectl  -t  2>&1 )"
+  if [ "$?" != "0" ] ; then
+    _err "Sorry, apache config file has error, please fix it first, then try again."
+    _err "Don't worry, there is nothing changed to your system."
+    _err "$_msg"
+    return 1;
+  else
+    _info "OK"
+  fi
+  
   #backup the conf
   _debug "Backup apache config file" "$httpdconf"
   if ! cp "$httpdconf" "$APACHE_CONF_BACKUP_DIR/" ; then
-    _err "Can not backup apache config file, so abort. Don't worry, your apache config is not changed."
+    _err "Can not backup apache config file, so abort. Don't worry, the apache config is not changed."
     _err "This might be a bug of $PROJECT_NAME , pleae report issue: $PROJECT"
     return 1
   fi
@@ -1031,10 +1043,14 @@ Allow from all
   " >> "$httpdconf"
   fi
 
-  
-  if ! apachectl  -t >/dev/null 2>&1; then
-    _err "Sorry, apache config error, please contact me."
-    _restoreApache
+  _msg="$(apachectl  -t  2>&1 )"
+  if [ "$?" != "0" ] ; then
+    _err "Sorry, apache config error"
+    if _restoreApache ; then
+      _err "The apache config file is restored."
+    else
+      _err "Sorry, The apache config file can not be restored, please report bug."
+    fi
     return 1;
   fi
   
