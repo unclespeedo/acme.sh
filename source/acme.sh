@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.2.9
+VER=2.3.0
 
 PROJECT_NAME="acme.sh"
 
@@ -651,7 +651,7 @@ _post() {
         _err "$(cat "$_CURL_DUMP")"
       fi
     fi
-  else
+  elif _exists "wget" ; then
     _debug "WGET" "$WGET"
     if [ "$needbase64" ] ; then
       if [ "$httpmethod"="POST" ] ; then
@@ -671,6 +671,9 @@ _post() {
       _err "Please refer to https://www.gnu.org/software/wget/manual/html_node/Exit-Status.html for error code: $_ret" 
     fi
     _sed_i "s/^ *//g" "$HTTP_HEADER"
+  else
+    _ret="$?"
+    _err "Neither curl nor wget is found, can not do $httpmethod."
   fi
   _debug "_ret" "$_ret"
   printf "%s" "$response"
@@ -691,7 +694,7 @@ _get() {
       $CURL    --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
     fi
     ret=$?
-  else
+  elif _exists "wget" ; then
     _debug "WGET" "$WGET"
     if [ "$onlyheader" ] ; then
       $WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" -S -O /dev/null $url 2>&1 | sed 's/^[ ]*//g'
@@ -699,6 +702,9 @@ _get() {
       $WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1"    -O - $url
     fi
     ret=$?
+  else
+    ret=$?
+    _err "Neither curl nor wget is found, can not do GET."
   fi
   _debug "ret" "$ret"
   return $ret
@@ -825,6 +831,19 @@ _cleardomainconf() {
     _sed_i "s/^$key.*$//"  "$DOMAIN_CONF"
   else
     _err "DOMAIN_CONF is empty, can not save $key=$value"
+  fi
+}
+
+#_readdomainconf   key
+_readdomainconf() {
+  key="$1"
+  if [ "$DOMAIN_CONF" ] ; then
+  (
+    eval $(grep "^$key *=" "$DOMAIN_CONF")
+    eval "printf \"%s\" \"\$$key\""
+  )
+  else
+    _err "DOMAIN_CONF is empty, can not read $key"
   fi
 }
 
@@ -1269,7 +1288,7 @@ issue() {
   _initpath $Le_Domain
 
   if [ -f "$DOMAIN_CONF" ] ; then
-    Le_NextRenewTime=$(grep "^Le_NextRenewTime=" "$DOMAIN_CONF" | cut -d '=' -f 2 | tr -d "'\"")
+    Le_NextRenewTime=$(_readdomainconf Le_NextRenewTime)
     _debug Le_NextRenewTime "$Le_NextRenewTime"
     if [ -z "$FORCE" ] && [ "$Le_NextRenewTime" ] && [ $(date -u "+%s" ) -lt $Le_NextRenewTime ] ; then 
       _info "Skip, Next renewal time is: $(grep "^Le_NextRenewTimeStr" "$DOMAIN_CONF" | cut -d '=' -f 2)"
@@ -1280,15 +1299,12 @@ issue() {
   _savedomainconf "Le_Domain"       "$Le_Domain"
   _savedomainconf "Le_Alt"          "$Le_Alt"
   _savedomainconf "Le_Webroot"      "$Le_Webroot"
-  _savedomainconf "Le_Keylength"    "$Le_Keylength"
   
+
   if [ "$Le_Alt" = "no" ] ; then
     Le_Alt=""
   fi
-  if [ "$Le_Keylength" = "no" ] ; then
-    Le_Keylength=""
-  fi
-  
+
   if _hasfield "$Le_Webroot" "no" ; then
     _info "Standalone mode."
     if ! _exists "nc" ; then
@@ -1384,7 +1400,13 @@ issue() {
     _info "Skip register account key"
   fi
 
-  if [ ! -f "$CERT_KEY_PATH" ] ; then
+  if [ "$Le_Keylength" = "no" ] ; then
+    Le_Keylength=""
+  fi
+  
+  _key=$(_readdomainconf Le_Keylength)
+  _debug "Read key length:$_key"
+  if [ ! -f "$CERT_KEY_PATH" ] || [ "$Le_Keylength" != "$_key" ] ; then
     if ! createDomainKey $Le_Domain $Le_Keylength ; then 
       _err "Create domain key error."
       _clearup
@@ -1392,6 +1414,9 @@ issue() {
     fi
   fi
   
+  _savedomainconf "Le_Keylength"    "$Le_Keylength"
+  
+
   if ! createCSR  $Le_Domain  $Le_Alt ; then
     _err "Create CSR error."
     _clearup
@@ -2482,8 +2507,10 @@ _installOnline() {
     _debug "Download error."
     return 1
   fi
+  (
   _info "Extracting $localname"
   tar xzf $localname
+  
   cd "$PROJECT_NAME-$BRANCH"
   chmod +x $PROJECT_ENTRY
   if ./$PROJECT_ENTRY install "$_nocron" ; then
@@ -2491,13 +2518,15 @@ _installOnline() {
   fi
   
   cd ..
+  
   rm -rf "$PROJECT_NAME-$BRANCH"
   rm -f "$localname"
+  )
 }
 
 upgrade() {
   if (
-    cd $LE_WORKING_DIR
+    cd "$LE_WORKING_DIR"
     _installOnline "nocron"
   ) ; then
     _info "Upgrade success!"
