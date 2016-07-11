@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.3.0
+VER=2.3.1
 
 PROJECT_NAME="acme.sh"
 
@@ -162,8 +162,8 @@ _h2b() {
   if _exists let ; then
     uselet="1"
   fi
-  _debug uselet "$uselet"
-  _debug _URGLY_PRINTF "$_URGLY_PRINTF"
+  _debug2 uselet "$uselet"
+  _debug2 _URGLY_PRINTF "$_URGLY_PRINTF"
   while true ; do
     if [ -z "$_URGLY_PRINTF" ] ; then
       h="$(printf $hex | cut -c $i-$j)"
@@ -942,6 +942,7 @@ _starttlsserver() {
   fi
   
   #start openssl
+  _debug "openssl s_server -cert \"$TLS_CERT\"  -key \"$TLS_KEY\" -accept $port -naccept 1 -tlsextdebug"
   if [ "$DEBUG" ] && [ "$DEBUG" -ge "2" ] ; then
     (printf "HTTP/1.1 200 OK\r\n\r\n$content" | openssl s_server -cert "$TLS_CERT"  -key "$TLS_KEY" -accept $port -naccept 1 -tlsextdebug ) &
   else
@@ -1724,7 +1725,7 @@ issue() {
       fi
       
       if [ "$status" = "invalid" ] ; then
-         error="$(echo $response | tr -d "\r\n" | egrep -o '"error":{[^}]*}')"
+         error="$(echo $response | tr -d "\r\n" | egrep -o '"error":\{[^}]*}')"
          _debug2 error "$error"
          errordetail="$(echo $error |  grep -o '"detail": *"[^"]*"' | cut -d '"' -f 4)"
          _debug2 errordetail "$errordetail"
@@ -1824,16 +1825,10 @@ issue() {
   _savedomainconf  "Le_NextRenewTimeStr"  "$Le_NextRenewTimeStr"
 
 
-  _output="$(installcert $Le_Domain  "$Le_RealCertPath" "$Le_RealKeyPath" "$Le_RealCACertPath" "$Le_ReloadCmd" "$Le_RealFullChainPath" 2>&1)"
-  _ret="$?"
-  if [ "$_ret" = "9" ] ; then
-    #ignore the empty install error.
-    return 0
+  if [ "$Le_RealCertPath$Le_RealKeyPath$Le_RealCACertPath$Le_ReloadCmd$Le_RealFullChainPath" ] ; then
+    installcert $Le_Domain  "$Le_RealCertPath" "$Le_RealKeyPath" "$Le_RealCACertPath" "$Le_ReloadCmd" "$Le_RealFullChainPath"
   fi
-  if [ "$_ret" != "0" ] ; then
-    _err "$_output"
-    return 1
-  fi
+
 }
 
 renew() {
@@ -2007,10 +2002,6 @@ installcert() {
     fi
   fi
 
-  if [ "$_installed" = "0" ] ; then
-    _err "Nothing to install. You don't specify any parameter."
-    return 9
-  fi
 
 }
 
@@ -2542,12 +2533,12 @@ _process() {
   _domain=""
   _altdomains="no"
   _webroot=""
-  _keylength="no"
-  _accountkeylength="no"
-  _certpath="no"
-  _keypath="no"
-  _capath="no"
-  _fullchainpath="no"
+  _keylength=""
+  _accountkeylength=""
+  _certpath=""
+  _keypath=""
+  _capath=""
+  _fullchainpath=""
   _reloadcmd=""
   _password=""
   _accountconf=""
