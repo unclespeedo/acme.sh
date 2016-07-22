@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.3.1
+VER=2.3.2
 
 PROJECT_NAME="acme.sh"
 
@@ -21,6 +21,8 @@ VTYPE_TLS="tls-sni-01"
 VTYPE_TLS2="tls-sni-02"
 
 MAX_RENEW=80
+
+DEFAULT_DNS_SLEEP=120
 
 W_TLS="tls"
 
@@ -901,9 +903,23 @@ _stopserver(){
     return
   fi
 
-  _get "http://localhost:$Le_HTTPPort" >/dev/null 2>&1
-  _get "https://localhost:$Le_TLSPort" >/dev/null 2>&1
-
+  _debug2 "Le_HTTPPort" "$Le_HTTPPort"
+  if [ "$Le_HTTPPort" ] ; then
+    if [ "$DEBUG" ] ; then
+      _get "http://localhost:$Le_HTTPPort"
+    else
+      _get "http://localhost:$Le_HTTPPort" >/dev/null 2>&1
+    fi
+  fi
+  
+  _debug2 "Le_TLSPort" "$Le_TLSPort"
+  if [ "$Le_TLSPort" ] ; then
+    if [ "$DEBUG" ] ; then
+      _get "https://localhost:$Le_TLSPort"
+    else
+      _get "https://localhost:$Le_TLSPort" >/dev/null 2>&1
+    fi
+  fi
 }
 
 
@@ -1088,23 +1104,23 @@ _initpath() {
 
 
 _apachePath() {
-  _APAHECTL="apachectl"
+  _APACHECTL="apachectl"
   if ! _exists apachectl ; then
     if _exists apache2ctl ; then
-       _APAHECTL="apache2ctl"
+       _APACHECTL="apache2ctl"
     else
       _err "'apachectl not found. It seems that apache is not installed, or you are not root user.'"
       _err "Please use webroot mode to try again."
       return 1
     fi
   fi
-  httpdconfname="$($_APAHECTL -V | grep SERVER_CONFIG_FILE= | cut -d = -f 2 | tr -d '"' )"
+  httpdconfname="$($_APACHECTL -V | grep SERVER_CONFIG_FILE= | cut -d = -f 2 | tr -d '"' )"
   _debug httpdconfname "$httpdconfname"
   if _startswith "$httpdconfname" '/' ; then
     httpdconf="$httpdconfname"
     httpdconfname="$(basename $httpdconfname)"
   else
-    httpdroot="$($_APAHECTL -V | grep HTTPD_ROOT= | cut -d = -f 2 | tr -d '"' )"
+    httpdroot="$($_APACHECTL -V | grep HTTPD_ROOT= | cut -d = -f 2 | tr -d '"' )"
     _debug httpdroot "$httpdroot"
     httpdconf="$httpdroot/$httpdconfname"
     httpdconfname="$(basename $httpdconfname)"
@@ -1134,7 +1150,7 @@ _restoreApache() {
   
   cat "$APACHE_CONF_BACKUP_DIR/$httpdconfname" > "$httpdconf"
   _debug "Restored: $httpdconf."
-  if ! $_APAHECTL  -t >/dev/null 2>&1 ; then
+  if ! $_APACHECTL  -t >/dev/null 2>&1 ; then
     _err "Sorry, restore apache config error, please contact me."
     return 1;
   fi
@@ -1151,7 +1167,7 @@ _setApache() {
 
   #test the conf first
   _info "Checking if there is an error in the apache config file before starting."
-  _msg="$($_APAHECTL  -t  2>&1 )"
+  _msg="$($_APACHECTL  -t  2>&1 )"
   if [ "$?" != "0" ] ; then
     _err "Sorry, apache config file has error, please fix it first, then try again."
     _err "Don't worry, there is nothing changed to your system."
@@ -1174,7 +1190,7 @@ _setApache() {
   
   #add alias
   
-  apacheVer="$($_APAHECTL -V | grep "Server version:" | cut -d : -f 2 | cut -d " " -f 2 | cut -d '/' -f 2 )"
+  apacheVer="$($_APACHECTL -V | grep "Server version:" | cut -d : -f 2 | cut -d " " -f 2 | cut -d '/' -f 2 )"
   _debug "apacheVer" "$apacheVer"
   apacheMajer="$(echo "$apacheVer" | cut -d . -f 1)"
   apacheMinor="$(echo "$apacheVer" | cut -d . -f 2)"
@@ -1198,7 +1214,7 @@ Allow from all
   " >> "$httpdconf"
   fi
 
-  _msg="$($_APAHECTL  -t  2>&1 )"
+  _msg="$($_APACHECTL  -t  2>&1 )"
   if [ "$?" != "0" ] ; then
     _err "Sorry, apache config error"
     if _restoreApache ; then
@@ -1214,8 +1230,8 @@ Allow from all
     chmod 755 "$ACME_DIR"
   fi
   
-  if ! $_APAHECTL  graceful ; then
-    _err "Sorry, $_APAHECTL  graceful error, please contact me."
+  if ! $_APACHECTL  graceful ; then
+    _err "Sorry, $_APACHECTL  graceful error, please contact me."
     _restoreApache
     return 1;
   fi
@@ -1243,17 +1259,23 @@ _clearupwebbroot() {
     return 0
   fi
   
+  _rmpath=""
   if [ "$2" = '1' ] ; then
-    _debug "remove $__webroot/.well-known"
-    rm -rf "$__webroot/.well-known"
+    _rmpath="$__webroot/.well-known"
   elif [ "$2" = '2' ] ; then
-    _debug "remove $__webroot/.well-known/acme-challenge"
-    rm -rf "$__webroot/.well-known/acme-challenge"
+    _rmpath="$__webroot/.well-known/acme-challenge"
   elif [ "$2" = '3' ] ; then
-    _debug "remove $__webroot/.well-known/acme-challenge/$3"
-    rm -rf "$__webroot/.well-known/acme-challenge/$3"
+    _rmpath="$__webroot/.well-known/acme-challenge/$3"
   else
     _debug "Skip for removelevel:$2"
+  fi
+  
+  if [ "$_rmpath" ] ; then
+    if [ "$DEBUG" ] ; then
+      _debug "Debugging, skip removing: $_rmpath"
+    else
+      rm -rf "$_rmpath"
+    fi
   fi
   
   return 0
@@ -1571,7 +1593,7 @@ issue() {
   
   if [ "$dnsadded" = '1' ] ; then
     if [ -z "$Le_DNSSleep" ] ; then
-      Le_DNSSleep=60
+      Le_DNSSleep=$DEFAULT_DNS_SLEEP
     else
       _savedomainconf "Le_DNSSleep"  "$Le_DNSSleep"
     fi
@@ -1733,6 +1755,11 @@ issue() {
            _err "$d:Verify error:$errordetail"
          else
            _err "$d:Verify error:$error"
+         fi
+         if [ "$DEBUG" ] ; then
+           if [ "$vtype" = "$VTYPE_HTTP" ] ; then
+             _get "http://$d/.well-known/acme-challenge/$token"
+           fi
          fi
         _clearupwebbroot "$_currentRoot" "$removelevel" "$token"
         _clearup
@@ -2083,7 +2110,7 @@ revoke() {
       return 0
     else 
       _err "Revoke error by domain key."
-      _err "$resource"
+      _err "$response"
     fi
   fi
   
@@ -2096,7 +2123,7 @@ revoke() {
       return 0
     else 
       _err "Revoke error."
-      _debug "$resource"
+      _debug "$response"
     fi
   fi
   return 1
@@ -2453,7 +2480,7 @@ Parameters:
   --tls                             Use standalone tls mode.
   --apache                          Use apache mode.
   --dns [dns_cf|dns_dp|dns_cx|/path/to/api/file]   Use dns mode or dns api.
-  --dnssleep  [60]                  The time in seconds to wait for all the txt records to take effect in dns api mode. Default 60 seconds.
+  --dnssleep  [$DEFAULT_DNS_SLEEP]                  The time in seconds to wait for all the txt records to take effect in dns api mode. Default $DEFAULT_DNS_SLEEP seconds.
   
   --keylength, -k [2048]            Specifies the domain key length: 2048, 3072, 4096, 8192 or ec-256, ec-384.
   --accountkeylength, -ak [2048]    Specifies the account key length.
@@ -2805,6 +2832,9 @@ _process() {
     shift 1
   done
 
+  if [ "$DEBUG" ] ; then
+    version
+  fi
 
   case "${_CMD}" in
     install) install "$_nocron" ;;
