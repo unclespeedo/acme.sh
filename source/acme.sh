@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.3.2
+VER=2.3.5
 
 PROJECT_NAME="acme.sh"
 
@@ -9,9 +9,9 @@ PROJECT_ENTRY="acme.sh"
 PROJECT="https://github.com/Neilpang/$PROJECT_NAME"
 
 DEFAULT_CA="https://acme-v01.api.letsencrypt.org"
-DEFAULT_AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf"
+DEFAULT_AGREEMENT="https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf"
 
-DEFAULT_USER_AGENT="$PROJECT_ENTRY client: $PROJECT"
+DEFAULT_USER_AGENT="$PROJECT_ENTRY client v$VER : $PROJECT"
 
 STAGE_CA="https://acme-staging.api.letsencrypt.org"
 
@@ -25,6 +25,8 @@ MAX_RENEW=80
 DEFAULT_DNS_SLEEP=120
 
 W_TLS="tls"
+
+STATE_VERIFIED="verified_ok"
 
 BEGIN_CSR="-----BEGIN CERTIFICATE REQUEST-----"
 END_CSR="-----END CERTIFICATE REQUEST-----"
@@ -639,6 +641,7 @@ _post() {
   fi
   _debug $httpmethod
   _debug "url" "$url"
+  _debug2 "body" "$body"
   if _exists "curl" ; then
     _CURL="$CURL --dump-header $HTTP_HEADER "
     _debug "_CURL" "$_CURL"
@@ -684,26 +687,36 @@ _post() {
   return $_ret
 }
 
-# url getheader
+# url getheader timeout
 _get() {
   _debug GET
   url="$1"
   onlyheader="$2"
+  t="$3"
   _debug url $url
+  _debug "timeout" "$t"
   if _exists "curl" ; then
-    _debug "CURL" "$CURL"
+    _CURL="$CURL"
+    if [ "$t" ] ; then
+      _CURL="$_CURL --connect-timeout $t"
+    fi
+    _debug "_CURL" "$_CURL"
     if [ "$onlyheader" ] ; then
-      $CURL -I --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
+      $_CURL -I --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
     else
-      $CURL    --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
+      $_CURL    --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
     fi
     ret=$?
   elif _exists "wget" ; then
-    _debug "WGET" "$WGET"
+    _WGET="$WGET"
+    if [ "$t" ] ; then
+      _WGET="$_WGET --timeout=$t"
+    fi
+    _debug "_WGET" "$_WGET"
     if [ "$onlyheader" ] ; then
-      $WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" -S -O /dev/null $url 2>&1 | sed 's/^[ ]*//g'
+      $_WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" -S -O /dev/null $url 2>&1 | sed 's/^[ ]*//g'
     else
-      $WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1"    -O - $url
+      $_WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1"    -O - $url
     fi
     ret=$?
   else
@@ -917,9 +930,11 @@ _stopserver(){
   _debug2 "Le_TLSPort" "$Le_TLSPort"
   if [ "$Le_TLSPort" ] ; then
     if [ "$DEBUG" ] ; then
-      _get "https://localhost:$Le_TLSPort"
+      _get "https://localhost:$Le_TLSPort" "" 1
+      _get "https://localhost:$Le_TLSPort" "" 1
     else
-      _get "https://localhost:$Le_TLSPort" >/dev/null 2>&1
+      _get "https://localhost:$Le_TLSPort" "" 1 >/dev/null 2>&1
+      _get "https://localhost:$Le_TLSPort" "" 1 >/dev/null 2>&1
     fi
   fi
 }
@@ -962,9 +977,9 @@ _starttlsserver() {
   #start openssl
   _debug "openssl s_server -cert \"$TLS_CERT\"  -key \"$TLS_KEY\" -accept $port -naccept 1 -tlsextdebug"
   if [ "$DEBUG" ] && [ "$DEBUG" -ge "2" ] ; then
-    (printf "HTTP/1.1 200 OK\r\n\r\n$content" | openssl s_server -cert "$TLS_CERT"  -key "$TLS_KEY" -accept $port -naccept 1 -tlsextdebug ) &
+    (printf "HTTP/1.1 200 OK\r\n\r\n$content" | openssl s_server -cert "$TLS_CERT"  -key "$TLS_KEY" -accept $port -tlsextdebug ) &
   else
-    (printf "HTTP/1.1 200 OK\r\n\r\n$content" | openssl s_server -cert "$TLS_CERT"  -key "$TLS_KEY" -accept $port -naccept 1 >/dev/null 2>&1) &
+    (printf "HTTP/1.1 200 OK\r\n\r\n$content" | openssl s_server -cert "$TLS_CERT"  -key "$TLS_KEY" -accept $port  >/dev/null 2>&1) &
   fi
 
   serverproc="$!"
@@ -1399,19 +1414,19 @@ issue() {
   accountkey_json=$(echo -n "$jwk" |  tr -d ' ' )
   thumbprint=$(echo -n "$accountkey_json" | _digest "sha256" | _urlencode)
   
-  accountkeyhash="$(cat "$ACCOUNT_KEY_PATH" | _digest "sha256" )"
-  accountkeyhash="$(echo $accountkeyhash$API | _digest "sha256" )"
-  if [ "$accountkeyhash" != "$ACCOUNT_KEY_HASH" ] ; then
-    _info "Registering account"
-    regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
-    if [ "$ACCOUNT_EMAIL" ] ; then
-      regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
-    fi  
-    _send_signed_request   "$API/acme/new-reg"  "$regjson"
+  regjson='{"resource": "new-reg", "agreement": "'$AGREEMENT'"}'
+  if [ "$ACCOUNT_EMAIL" ] ; then
+    regjson='{"resource": "new-reg", "contact": ["mailto: '$ACCOUNT_EMAIL'"], "agreement": "'$AGREEMENT'"}'
+  fi
     
+  accountkeyhash="$(cat "$ACCOUNT_KEY_PATH" | _digest "sha256" )"
+  accountkeyhash="$(echo $accountkeyhash$API$regjson | _digest "sha256" )"
+  if [ "$accountkeyhash" != "$ACCOUNT_KEY_HASH" ] ; then
+    _info "Registering account"    
+    _send_signed_request   "$API/acme/new-reg"  "$regjson"    
     if [ "$code" = "" ] || [ "$code" = '201' ] ; then
       _info "Registered"
-      echo $response > $LE_WORKING_DIR/account.json
+      echo "$response" > $LE_WORKING_DIR/account.json
     elif [ "$code" = '409' ] ; then
       _info "Already registered"
     else
@@ -1506,6 +1521,14 @@ issue() {
       keyauthorization="$token.$thumbprint"
       _debug keyauthorization "$keyauthorization"
 
+
+      if printf "$response" | grep '"status":"valid"' >/dev/null 2>&1 ; then
+        _info "$d is already verified, skip."
+        keyauthorization=$STATE_VERIFIED
+        _debug keyauthorization "$keyauthorization"
+      fi
+
+
       dvlist="$d$sep$keyauthorization$sep$uri$sep$vtype$sep$_currentRoot"
       _debug dvlist "$dvlist"
       
@@ -1522,6 +1545,12 @@ issue() {
       keyauthorization=$(echo $ventry | cut -d $sep -f 2)
       vtype=$(echo $ventry | cut -d $sep -f 4)
       _currentRoot=$(echo $ventry | cut -d $sep -f 5)
+
+      if [ "$keyauthorization" = "$STATE_VERIFIED" ] ; then
+        _info "$d is already verified, skip $vtype."
+        continue
+      fi
+
       if [ "$vtype" = "$VTYPE_DNS" ] ; then
         dnsadded='0'
         txtdomain="_acme-challenge.$d"
@@ -1614,6 +1643,12 @@ issue() {
     uri=$(echo $ventry | cut -d $sep -f 3)
     vtype=$(echo $ventry | cut -d $sep -f 4)
     _currentRoot=$(echo $ventry | cut -d $sep -f 5)
+
+    if [ "$keyauthorization" = "$STATE_VERIFIED" ] ; then
+      _info "$d is already verified, skip $vtype."
+      continue
+    fi
+
     _info "Verifying:$d"
     _debug "d" "$d"
     _debug "keyauthorization" "$keyauthorization"
@@ -1877,6 +1912,10 @@ renew() {
     return 0;
   fi
   
+  if [ "$Le_RenewalDays" ] ; then
+    _savedomainconf Le_RenewalDays "$Le_RenewalDays"
+  fi
+
   . "$DOMAIN_CONF"
   if [ -z "$FORCE" ] && [ "$Le_NextRenewTime" ] && [ "$(date -u "+%s" )" -lt "$Le_NextRenewTime" ] ; then 
     _info "Skip, Next renewal time is: $Le_NextRenewTimeStr"
@@ -2215,6 +2254,12 @@ _initconf() {
 #CX_Key=\"1234\"
 #
 #CX_Secret=\"sADDsdasdgdsf\"
+
+#######################
+#Godaddy.com:
+#GD_Key=\"sdfdsgdgdfdasfds\"
+#
+#GD_Secret=\"sADDsdasdfsdfdssdgdsf\"
 
     " > $ACCOUNT_CONF_PATH
   fi
