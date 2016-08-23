@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.4.1
+VER=2.4.2
 
 PROJECT_NAME="acme.sh"
 
@@ -376,7 +376,7 @@ _isEccKey() {
 
   [ "$_length" != "1024" ] \
   && [ "$_length" != "2048" ] \
-  && [ "$_length" != "3172" ] \
+  && [ "$_length" != "3072" ] \
   && [ "$_length" != "4096" ] \
   && [ "$_length" != "8192" ]
 }
@@ -518,28 +518,26 @@ toPkcs() {
 
 }
 
-#domain [2048]  
+#[2048]  
 createAccountKey() {
   _info "Creating account key"
   if [ -z "$1" ] ; then
-    _usage "Usage: $PROJECT_ENTRY --createAccountKey -d domain.com  [--accountkeylength 2048]"
+    _usage "Usage: $PROJECT_ENTRY --createAccountKey --accountkeylength 2048"
     return
   fi
   
-  account=$1
-  length=$2
-  _debug account "$account"
-  _debug length "$length"
+  length=$1
   if _startswith "$length" "ec-" ; then
     length=2048
   fi
   
-  if [ -z "$2" ] || [ "$2" = "no" ] ; then
+  if [ -z "$length" ] || [ "$length" = "no" ] ; then
     _info "Use default length 2048"
     length=2048
   fi
+  _debug length "$length"
   _initpath
-  
+
   if [ -f "$ACCOUNT_KEY_PATH" ] ; then
     _info "Account key exists, skip"
     return
@@ -1214,12 +1212,11 @@ _initpath() {
     CERT_HOME="$_DEFAULT_CERT_HOME"
   fi
 
-  domain="$1"
-  length="$2"
-  if [ -z "$domain" ] ; then
+  if [ -z "$1" ] ; then
     return 0
   fi
-  
+  domain="$1"
+  _ilength="$2"
 
   if [ -z "$DOMAIN_PATH" ] ; then
     domainhome="$CERT_HOME/$domain"
@@ -1227,12 +1224,11 @@ _initpath() {
     
     DOMAIN_PATH="$domainhome"
     
-    if _isEccKey "$length" ; then
+    if _isEccKey "$_ilength" ; then
       DOMAIN_PATH="$domainhomeecc"
     else
       if [ ! -d "$domainhome" ] && [ -d "$domainhomeecc" ] ; then
-        _info "The domain '$domain' seems to be a ECC domain, please add '$(__red "--ecc")' parameter next time."
-        DOMAIN_PATH="$domainhomeecc"
+        _info "The domain '$domain' seems to have a ECC cert already, please add '$(__red "--ecc")' parameter if you want to use that cert."
       fi
     fi
     _debug DOMAIN_PATH "$DOMAIN_PATH"
@@ -1566,7 +1562,11 @@ issue() {
   fi
   
   if [ ! -f "$ACCOUNT_KEY_PATH" ] ; then
-    if ! createAccountKey $Le_Domain $Le_Keylength ; then
+    _acck="no"
+    if [ "$Le_Keylength" ] ; then
+      _acck="$Le_Keylength"
+    fi
+    if ! createAccountKey "$_acck" ; then
       _err "Create account key error."
       if [ "$usingApache" ] ; then
         _restoreApache
@@ -1800,7 +1800,7 @@ issue() {
       _savedomainconf "Le_DNSSleep"  "$Le_DNSSleep"
     fi
 
-    _info "Sleep $Le_DNSSleep seconds for the txt records to take effect"
+    _info "Sleep $(__green $Le_DNSSleep) seconds for the txt records to take effect"
     sleep $Le_DNSSleep
   fi
   
@@ -2010,7 +2010,8 @@ issue() {
     _info "$(__green "Cert success.")"
     cat "$CERT_PATH"
     
-    _info "Your cert is in $CERT_PATH"
+    _info "Your cert is in $( __green " $CERT_PATH ")"
+    _info "Your cert key is in $( __green " $CERT_KEY_PATH ")"
     cp "$CERT_PATH" "$CERT_FULLCHAIN_PATH"
 
     if [ ! "$USER_PATH" ] || [ ! "$IN_CRON" ] ; then
@@ -2039,9 +2040,9 @@ issue() {
     echo "$BEGIN_CERT" > "$CA_CERT_PATH"
     _get "$Le_LinkIssuer" | _base64 "multiline"  >> "$CA_CERT_PATH"
     echo "$END_CERT"  >> "$CA_CERT_PATH"
-    _info "The intermediate CA cert is in $CA_CERT_PATH"
+    _info "The intermediate CA cert is in $( __green " $CA_CERT_PATH ")"
     cat "$CA_CERT_PATH" >> "$CERT_FULLCHAIN_PATH"
-    _info "And the full chain certs is there: $CERT_FULLCHAIN_PATH"
+    _info "And the full chain certs is there: $( __green " $CERT_FULLCHAIN_PATH ")"
   fi
   
   Le_CertCreateTime=$(date -u "+%s")
@@ -3134,7 +3135,7 @@ _process() {
       toPkcs "$_domain" "$_password" "$_ecc"
       ;;
     createAccountKey) 
-      createAccountKey "$_domain" "$_accountkeylength"
+      createAccountKey "$_accountkeylength"
       ;;
     createDomainKey) 
       createDomainKey "$_domain" "$_keylength"
