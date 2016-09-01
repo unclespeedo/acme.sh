@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.4.2
+VER=2.4.4
 
 PROJECT_NAME="acme.sh"
 
@@ -169,7 +169,7 @@ _exists(){
     type "$cmd" >/dev/null 2>&1
   fi
   ret="$?"
-  _debug2 "$cmd exists=$ret"
+  _debug3 "$cmd exists=$ret"
   return $ret
 }
 
@@ -219,8 +219,8 @@ _h2b() {
   if _exists let ; then
     uselet="1"
   fi
-  _debug2 uselet "$uselet"
-  _debug2 _URGLY_PRINTF "$_URGLY_PRINTF"
+  _debug3 uselet "$uselet"
+  _debug3 _URGLY_PRINTF "$_URGLY_PRINTF"
   while true ; do
     if [ -z "$_URGLY_PRINTF" ] ; then
       h="$(printf $hex | cut -c $i-$j)"
@@ -334,11 +334,11 @@ _digest() {
   
   outputhex="$2"
   
-  if [ "$alg" = "sha256" ] ; then
+  if [ "$alg" = "sha256" ] || [ "$alg" = "sha1" ]; then
     if [ "$outputhex" ] ; then
-      echo $(openssl dgst -sha256 -hex | cut -d = -f 2)
+      openssl dgst -$alg -hex | cut -d = -f 2 | tr -d ' '
     else
-      openssl dgst -sha256 -binary | _base64
+      openssl dgst -$alg -binary | _base64
     fi
   else
     _err "$alg is not supported yet"
@@ -405,13 +405,13 @@ _createkey() {
      length=2048
   fi
   
-  _info "Use length $length"
+  _debug "Use length $length"
 
   if _isEccKey "$length" ; then
-    _info "Using ec name: $eccname"
+    _debug "Using ec name: $eccname"
     openssl ecparam  -name $eccname -genkey 2>/dev/null > "$f"
   else
-    _info "Using RSA: $length"
+    _debug "Using RSA: $length"
     openssl genrsa $length 2>/dev/null > "$f"
   fi
 
@@ -462,6 +462,60 @@ _signcsr() {
   _debug "$_msg"
   return $_ret
 }
+
+#_csrfile
+_readSubjectFromCSR() {
+  _csrfile="$1"
+  if [ -z "$_csrfile" ] ; then
+    _usage "_readSubjectFromCSR mycsr.csr"
+    return 1
+  fi
+  openssl req  -noout  -in  "$_csrfile"  -subject | _egrep_o "CN=.*" | cut -d = -f 2 |  cut -d / -f 1 | tr -d '\n'
+}
+
+#_csrfile
+#echo comma separated domain list
+_readSubjectAltNamesFromCSR() {
+  _csrfile="$1"
+  if [ -z "$_csrfile" ] ; then
+    _usage "_readSubjectAltNamesFromCSR mycsr.csr"
+    return 1
+  fi
+  
+  _csrsubj="$(_readSubjectFromCSR "$_csrfile")"
+  _debug _csrsubj "$_csrsubj"
+  
+  _dnsAltnames="$(openssl req  -noout -text  -in  "$_csrfile" | grep "^ *DNS:.*" | tr -d ' \n')"
+  _debug _dnsAltnames "$_dnsAltnames"
+  
+  if _contains "$_dnsAltnames," "DNS:$_csrsubj," ; then
+    _debug "AltNames contains subject"
+    _dnsAltnames="$(printf "%s" "$_dnsAltnames," | sed "s/DNS:$_csrsubj,//g")"
+  else
+    _debug "AltNames doesn't contain subject"
+  fi
+  
+  printf "%s" "$_dnsAltnames" | sed "s/DNS://g"
+}
+
+#_csrfile 
+_readKeyLengthFromCSR() {
+  _csrfile="$1"
+  if [ -z "$_csrfile" ] ; then
+    _usage "_readKeyLengthFromCSR mycsr.csr"
+    return 1
+  fi
+  
+  _outcsr="$(openssl req  -noout -text  -in  "$_csrfile")"
+  if _contains "$_outcsr" "Public Key Algorithm: id-ecPublicKey" ; then
+    _debug "ECC CSR"
+    echo "$_outcsr" | _egrep_o "^ *ASN1 OID:.*" | cut -d ':' -f 2 | tr -d ' '
+  else
+    _debug "RSA CSR"
+    echo "$_outcsr" | _egrep_o "^ *Public-Key:.*" | cut -d '(' -f 2 | cut -d ' ' -f 1
+  fi
+}
+
 
 _ss() {
   _port="$1"
@@ -527,12 +581,12 @@ createAccountKey() {
   fi
   
   length=$1
-  if _startswith "$length" "ec-" ; then
+  if _isEccKey "$length" ; then
     length=2048
   fi
   
   if [ -z "$length" ] || [ "$length" = "no" ] ; then
-    _info "Use default length 2048"
+    _debug "Use default length 2048"
     length=2048
   fi
   _debug length "$length"
@@ -722,16 +776,24 @@ _calcjwk() {
   _debug3 HEADER "$HEADER"
 }
 
+_time() {
+  date -u "+%s"
+}
 
 _mktemp() {
   if _exists mktemp ; then
     mktemp
   fi
+  if [ -d "/tmp" ] ; then
+    echo "/tmp/${PROJECT_NAME}wefADf24sf.$(_time).tmp"
+    return 0
+  fi
+  _err "Can not create temp file."
 }
 
 _inithttp() {
 
-  if [ -z "$HTTP_HEADER" ] || ! touch "HTTP_HEADER" ; then
+  if [ -z "$HTTP_HEADER" ] || ! touch "$HTTP_HEADER" ; then
     HTTP_HEADER="$(_mktemp)"
     _debug2 HTTP_HEADER "$HTTP_HEADER"
   fi
@@ -743,6 +805,10 @@ _inithttp() {
       CURL="$CURL --trace-ascii $_CURL_DUMP "
     fi
 
+    if [ "$CA_BUNDLE" ] ; then
+      CURL="$CURL --cacert $CA_BUNDLE "
+    fi
+
     if [ "$HTTPS_INSECURE" ] ; then
       CURL="$CURL --insecure  "
     fi
@@ -752,6 +818,9 @@ _inithttp() {
     WGET="wget -q"
     if [ "$DEBUG" ] && [ "$DEBUG" -ge "2" ] ; then
       WGET="$WGET -d "
+    fi
+    if [ "$CA_BUNDLE" ] ; then
+      WGET="$WGET --ca-certificate $CA_BUNDLE "
     fi
     if [ "$HTTPS_INSECURE" ] ; then
       WGET="$WGET --no-check-certificate "
@@ -781,9 +850,9 @@ _post() {
     _CURL="$CURL"
     _debug "_CURL" "$_CURL"
     if [ "$needbase64" ] ; then
-      response="$($_CURL --user-agent "$USER_AGENT" -X $httpmethod -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" --data "$body" "$url" | _base64)"
+      response="$($_CURL --user-agent "$USER_AGENT" -X $httpmethod -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" -H "$_H5" --data "$body" "$url" | _base64)"
     else
-      response="$($_CURL --user-agent "$USER_AGENT" -X $httpmethod -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" --data "$body" "$url" )"
+      response="$($_CURL --user-agent "$USER_AGENT" -X $httpmethod -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" -H "$_H5" --data "$body" "$url" )"
     fi
     _ret="$?"
     if [ "$_ret" != "0" ] ; then
@@ -797,15 +866,15 @@ _post() {
     _debug "WGET" "$WGET"
     if [ "$needbase64" ] ; then
       if [ "$httpmethod"="POST" ] ; then
-        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --post-data="$body" "$url" 2>"$HTTP_HEADER" | _base64)"
+        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H5" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --post-data="$body" "$url" 2>"$HTTP_HEADER" | _base64)"
       else
-        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --method $httpmethod --body-data="$body" "$url" 2>"$HTTP_HEADER" | _base64)"
+        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H5" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --method $httpmethod --body-data="$body" "$url" 2>"$HTTP_HEADER" | _base64)"
       fi
     else
       if [ "$httpmethod"="POST" ] ; then
-        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --post-data="$body" "$url" 2>"$HTTP_HEADER")"
+        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H5" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --post-data="$body" "$url" 2>"$HTTP_HEADER")"
       else
-        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --method $httpmethod --body-data="$body" "$url" 2>"$HTTP_HEADER")"
+        response="$($WGET -S -O - --user-agent="$USER_AGENT" --header "$_H5" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" --method $httpmethod --body-data="$body" "$url" 2>"$HTTP_HEADER")"
       fi
     fi
     _ret="$?"
@@ -841,9 +910,9 @@ _get() {
     fi
     _debug "_CURL" "$_CURL"
     if [ "$onlyheader" ] ; then
-      $_CURL -I --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
+      $_CURL -I --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" -H "$_H5" $url
     else
-      $_CURL    --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" $url
+      $_CURL    --user-agent "$USER_AGENT" -H "$_H1" -H "$_H2" -H "$_H3" -H "$_H4" -H "$_H5" $url
     fi
     ret=$?
     if [ "$ret" != "0" ] ; then
@@ -860,9 +929,9 @@ _get() {
     fi
     _debug "_WGET" "$_WGET"
     if [ "$onlyheader" ] ; then
-      $_WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" -S -O /dev/null $url 2>&1 | sed 's/^[ ]*//g'
+      $_WGET --user-agent="$USER_AGENT" --header "$_H5" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1" -S -O /dev/null $url 2>&1 | sed 's/^[ ]*//g'
     else
-      $_WGET --user-agent="$USER_AGENT" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1"    -O - $url
+      $_WGET --user-agent="$USER_AGENT" --header "$_H5" --header "$_H4" --header "$_H3" --header "$_H2" --header "$_H1"    -O - $url
     fi
     ret=$?
     if [ "$ret" != "0" ] ; then
@@ -1463,6 +1532,7 @@ _clearupwebbroot() {
 
 }
 
+#webroot, domain domainlist  keylength 
 issue() {
   if [ -z "$2" ] ; then
     _usage "Usage: $PROJECT_ENTRY --issue  -d  a.com  -w /path/to/webroot/a.com/ "
@@ -1497,8 +1567,9 @@ issue() {
   if [ -f "$DOMAIN_CONF" ] ; then
     Le_NextRenewTime=$(_readdomainconf Le_NextRenewTime)
     _debug Le_NextRenewTime "$Le_NextRenewTime"
-    if [ -z "$FORCE" ] && [ "$Le_NextRenewTime" ] && [ $(date -u "+%s" ) -lt $Le_NextRenewTime ] ; then 
-      _info "Skip, Next renewal time is: $(grep "^Le_NextRenewTimeStr" "$DOMAIN_CONF" | cut -d '=' -f 2)"
+    if [ -z "$FORCE" ] && [ "$Le_NextRenewTime" ] && [ $(_time) -lt $Le_NextRenewTime ] ; then 
+      _info "Skip, Next renewal time is: $(__green "$(_readdomainconf Le_NextRenewTimeStr)")"
+      _info "Add '$(__red '--force')' to force to renew."    
       return $RENEW_SKIP
     fi
   fi
@@ -1615,25 +1686,29 @@ issue() {
     Le_Keylength=""
   fi
   
-  _key=$(_readdomainconf Le_Keylength)
-  _debug "Read key length:$_key"
-  if [ ! -f "$CERT_KEY_PATH" ] || [ "$Le_Keylength" != "$_key" ] ; then
-    if ! createDomainKey $Le_Domain $Le_Keylength ; then 
-      _err "Create domain key error."
+  
+  if [ -f "$CSR_PATH" ] && [ ! -f "$CERT_KEY_PATH" ] ; then
+    _info "Signing from existing CSR."
+  else
+    _key=$(_readdomainconf Le_Keylength)
+    _debug "Read key length:$_key"
+    if [ ! -f "$CERT_KEY_PATH" ] || [ "$Le_Keylength" != "$_key" ] ; then
+      if ! createDomainKey $Le_Domain $Le_Keylength ; then 
+        _err "Create domain key error."
+        _clearup
+        return 1
+      fi
+    fi
+
+    if ! _createcsr "$Le_Domain" "$Le_Alt" "$CERT_KEY_PATH" "$CSR_PATH" "$DOMAIN_SSL_CONF"   ; then
+      _err "Create CSR error."
       _clearup
       return 1
     fi
   fi
-  
+
   _savedomainconf "Le_Keylength"    "$Le_Keylength"
   
-
-  if ! _createcsr "$Le_Domain" "$Le_Alt" "$CERT_KEY_PATH" "$CSR_PATH" "$DOMAIN_SSL_CONF"   ; then
-    _err "Create CSR error."
-    _clearup
-    return 1
-  fi
-
   vlist="$Le_Vlist"
   # verify each domain
   _info "Verify each domain"
@@ -1750,8 +1825,8 @@ issue() {
           _info "Found domain api file: $d_api"
         else
           _err "Add the following TXT record:"
-          _err "Domain: $txtdomain"
-          _err "TXT value: $txt"
+          _err "Domain: '$(__green $txtdomain)'"
+          _err "TXT value: '$(__green $txt)'"
           _err "Please be aware that you prepend _acme-challenge. before your domain"
           _err "so the resulting subdomain will be: $txtdomain"
           continue
@@ -2011,7 +2086,11 @@ issue() {
     cat "$CERT_PATH"
     
     _info "Your cert is in $( __green " $CERT_PATH ")"
-    _info "Your cert key is in $( __green " $CERT_KEY_PATH ")"
+
+    if [ -f "$CERT_KEY_PATH" ] ; then
+      _info "Your cert key is in $( __green " $CERT_KEY_PATH ")"
+    fi
+
     cp "$CERT_PATH" "$CERT_FULLCHAIN_PATH"
 
     if [ ! "$USER_PATH" ] || [ ! "$IN_CRON" ] ; then
@@ -2045,7 +2124,7 @@ issue() {
     _info "And the full chain certs is there: $( __green " $CERT_FULLCHAIN_PATH ")"
   fi
   
-  Le_CertCreateTime=$(date -u "+%s")
+  Le_CertCreateTime=$(_time)
   _savedomainconf  "Le_CertCreateTime"   "$Le_CertCreateTime"
   
   Le_CertCreateTimeStr=$(date -u )
@@ -2057,6 +2136,12 @@ issue() {
     _savedomainconf  "Le_RenewalDays"   "$Le_RenewalDays"
   fi
   
+  if [ "$CA_BUNDLE" ] ; then
+    _saveaccountconf CA_BUNDLE "$CA_BUNDLE"
+  else
+    _clearaccountconf "CA_BUNDLE"
+  fi
+
   if [ "$HTTPS_INSECURE" ] ; then
     _saveaccountconf HTTPS_INSECURE "$HTTPS_INSECURE"
   else
@@ -2088,7 +2173,7 @@ renew() {
 
   _initpath $Le_Domain "$_isEcc"
 
-  _info "Renew: '$Le_Domain'"
+  _info "$(__green "Renew: '$Le_Domain'")"
   if [ ! -f "$DOMAIN_CONF" ] ; then
     _info "'$Le_Domain' is not a issued domain, skip."
     return 0;
@@ -2099,8 +2184,9 @@ renew() {
   fi
 
   . "$DOMAIN_CONF"
-  if [ -z "$FORCE" ] && [ "$Le_NextRenewTime" ] && [ "$(date -u "+%s" )" -lt "$Le_NextRenewTime" ] ; then 
-    _info "Skip, Next renewal time is: $Le_NextRenewTimeStr"
+  if [ -z "$FORCE" ] && [ "$Le_NextRenewTime" ] && [ "$(_time)" -lt "$Le_NextRenewTime" ] ; then 
+    _info "Skip, Next renewal time is: $(__green "$Le_NextRenewTimeStr")"
+    _info "Add '$(__red '--force')' to force to renew."
     return $RENEW_SKIP
   fi
   
@@ -2145,6 +2231,82 @@ renewAll() {
   return $_ret
 }
 
+
+#csr webroot
+signcsr(){
+  _csrfile="$1"
+  _csrW="$2"
+  if [ -z "$_csrfile" ] || [ -z "$_csrW" ]; then
+    _usage "Usage: $PROJECT_ENTRY --signcsr  --csr mycsr.csr  -w /path/to/webroot/a.com/ "
+    return 1
+  fi
+
+  _initpath
+
+  _csrsubj=$(_readSubjectFromCSR "$_csrfile")
+  if [ "$?" != "0" ] || [ -z "$_csrsubj" ] ; then
+    _err "Can not read subject from csr: $_csrfile"
+    return 1
+  fi
+
+  _csrdomainlist=$(_readSubjectAltNamesFromCSR "$_csrfile")
+  if [ "$?" != "0" ] ; then
+    _err "Can not read domain list from csr: $_csrfile"
+    return 1
+  fi
+  _debug "_csrdomainlist" "$_csrdomainlist"
+  
+  _csrkeylength=$(_readKeyLengthFromCSR "$_csrfile")
+  if [ "$?" != "0" ] || [ -z "$_csrkeylength" ] ; then
+    _err "Can not read key length from csr: $_csrfile"
+    return 1
+  fi
+  
+  _initpath "$_csrsubj" "$_csrkeylength"
+  mkdir -p "$DOMAIN_PATH"
+  
+  _info "Copy csr to: $CSR_PATH"
+  cp "$_csrfile" "$CSR_PATH"
+  
+  issue "$_csrW" "$_csrsubj" "$_csrdomainlist" "$_csrkeylength"
+  
+}
+
+showcsr() {
+ _csrfile="$1"
+  _csrd="$2"
+  if [ -z "$_csrfile" ] && [ -z "$_csrd" ]; then
+    _usage "Usage: $PROJECT_ENTRY --showcsr  --csr mycsr.csr"
+    return 1
+  fi
+
+  _initpath
+  
+  _csrsubj=$(_readSubjectFromCSR "$_csrfile")
+  if [ "$?" != "0" ] || [ -z "$_csrsubj" ] ; then
+    _err "Can not read subject from csr: $_csrfile"
+    return 1
+  fi
+  
+  _info "Subject=$_csrsubj"
+
+  _csrdomainlist=$(_readSubjectAltNamesFromCSR "$_csrfile")
+  if [ "$?" != "0" ] ; then
+    _err "Can not read domain list from csr: $_csrfile"
+    return 1
+  fi
+  _debug "_csrdomainlist" "$_csrdomainlist"
+
+  _info "SubjectAltNames=$_csrdomainlist"
+
+
+  _csrkeylength=$(_readKeyLengthFromCSR "$_csrfile")
+  if [ "$?" != "0" ] || [ -z "$_csrkeylength" ] ; then
+    _err "Can not read key length from csr: $_csrfile"
+    return 1
+  fi
+  _info "KeyLength=$_csrkeylength"
+}
 
 list() {
   _raw="$1"
@@ -2718,13 +2880,15 @@ Commands:
   --version, -v            Show version info.
   --install                Install $PROJECT_NAME to your system.
   --uninstall              Uninstall $PROJECT_NAME, and uninstall the cron job.
-  --upgrade                Upgrade $PROJECT_NAME to the latest code from $PROJECT
+  --upgrade                Upgrade $PROJECT_NAME to the latest code from $PROJECT .
   --issue                  Issue a cert.
+  --signcsr                Issue a cert from an existing csr.
   --installcert            Install the issued cert to apache/nginx or any other server.
   --renew, -r              Renew a cert.
-  --renewAll               Renew all the certs
+  --renewAll               Renew all the certs.
   --revoke                 Revoke a cert.
-  --list                   List all the certs
+  --list                   List all the certs.
+  --showcsr                Show the content of a csr.
   --installcronjob         Install the cron job to renew certs, you don't need to call this. The 'install' command can automatically install the cron job.
   --uninstallcronjob       Uninstall the cron job. The 'uninstall' command can do this automatically.
   --cron                   Run cron job to renew all the certs.
@@ -2770,8 +2934,10 @@ Parameters:
   --listraw                         Only used for '--list' command, list the certs in raw format.
   --stopRenewOnError, -se           Only valid for '--renewall' command. Stop if one cert has error in renewal.
   --insecure                        Do not check the server certificate, in some devices, the api server's certificate may not be trusted.
+  --ca-bundle                       Specifices the path to the CA certificate bundle to verify api server's certificate.
   --nocron                          Only valid for '--install' command, which means: do not install the default cron job. In this case, the certs will not be renewed automatically.
   --ecc                             Specifies to use the ECC cert. Valid for '--installcert', '--renew', '--revoke', '--toPkcs' and '--createCSR'
+  --csr                             Specifies the input csr.
   "
 }
 
@@ -2844,8 +3010,10 @@ _process() {
   _listraw=""
   _stopRenewOnError=""
   _insecure=""
+  _ca_bundle=""
   _nocron=""
   _ecc=""
+  _csr=""
   while [ ${#} -gt 0 ] ; do
     case "${1}" in
     
@@ -2868,6 +3036,12 @@ _process() {
         ;;
     --issue)
         _CMD="issue"
+        ;;
+    --signcsr)
+        _CMD="signcsr"
+        ;;
+    --showcsr)
+        _CMD="showcsr"
         ;;
     --installcert|-i)
         _CMD="installcert"
@@ -3086,13 +3260,21 @@ _process() {
         _insecure="1"
         HTTPS_INSECURE="1"
         ;;
+    --ca-bundle)
+        _ca_bundle="$(readlink -f $2)"
+        CA_BUNDLE="$_ca_bundle"
+        shift
+        ;;
     --nocron)
         _nocron="1"
         ;;
     --ecc)
         _ecc="isEcc"
         ;;
-
+    --csr)
+        _csr="$2"
+        shift
+        ;;
     *)
         _err "Unknown parameter : $1"
         return 1
@@ -3112,6 +3294,12 @@ _process() {
     upgrade) upgrade ;;
     issue)
       issue  "$_webroot"  "$_domain" "$_altdomains" "$_keylength" "$_certpath" "$_keypath" "$_capath" "$_reloadcmd" "$_fullchainpath"
+      ;;
+    signcsr)
+      signcsr "$_csr" "$_webroot"
+      ;;
+    showcsr)
+      showcsr "$_csr" "$_domain"
       ;;
     installcert)
       installcert "$_domain" "$_certpath" "$_keypath" "$_capath" "$_reloadcmd" "$_fullchainpath" "$_ecc"
