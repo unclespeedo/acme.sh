@@ -1,4 +1,4 @@
-# An ACME Shell script: acme.sh
+# An ACME Shell script: acme.sh [![Build Status](https://travis-ci.org/Neilpang/acme.sh.svg?branch=master)](https://travis-ci.org/Neilpang/acme.sh)
 - An ACME protocol client written purely in Shell (Unix shell) language.
 - Fully ACME protocol implementation.
 - Simple, powerful and very easy to use. You only need 3 minutes to learn.
@@ -138,15 +138,24 @@ More examples: https://github.com/Neilpang/acme.sh/wiki/How-to-issue-a-cert
 
 # 3. Install the issued cert to apache/nginx etc.
 
-After you issue a cert, you probably want to install/copy the cert to your nginx/apache or other servers you may be using.
+After you issue a cert, you probably want to install/copy the cert to your nginx/apache or other servers. 
+You **MUST** use this command to copy the certs to the target files,  **Do NOT** use the certs files in **.acme.sh/** folder, they are for internal use only, the folder structure may change in future.
 
+**nginx** example
 ```bash
 acme.sh --installcert -d example.com \
---certpath /path/to/certfile/in/apache/nginx  \
---keypath  /path/to/keyfile/in/apache/nginx  \
---capath   /path/to/ca/certfile/apache/nginx   \
---fullchainpath path/to/fullchain/certfile/apache/nginx \
---reloadcmd  "service apache2|nginx reload"
+--keypath  /path/to/keyfile/in/nginx/key.pem  \
+--fullchainpath path/to/fullchain/nginx/cert.pem \
+--reloadcmd  "service nginx restart"
+```
+
+**apache** example
+```bash
+acme.sh --installcert -d example.com \
+--certpath /path/to/certfile/in/apache/cert.pem  \
+--keypath  /path/to/keyfile/in/apache/key.pem  \
+--fullchainpath path/to/fullchain/certfile/apache/fullchain.pem \
+--reloadcmd  "service apache2 restart"
 ```
 
 Only the domain is required, all the other parameters are optional.
@@ -245,6 +254,8 @@ You don't have do anything manually!
 7. PowerDNS API
 8. lexicon dns api: https://github.com/Neilpang/acme.sh/wiki/How-to-use-lexicon-dns-api
    (DigitalOcean, DNSimple, DnsMadeEasy, DNSPark, EasyDNS, Namesilo, NS1, PointHQ, Rage4 and Vultr etc.)
+9. LuaDNS.com API
+10. DNSMadeEasy.com API
 
 ##### More APIs are coming soon...
 
