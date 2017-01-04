@@ -12,30 +12,35 @@ DEFAULT_PDNS_TTL=60
 
 ########  Public functions #####################
 #Usage: add _acme-challenge.www.domain.com "123456789ABCDEF0000000000000000000000000000000000000"
+#fulldomain
+#txtvalue
 dns_pdns_add() {
   fulldomain=$1
   txtvalue=$2
 
   if [ -z "$PDNS_Url" ]; then
+    PDNS_Url=""
     _err "You don't specify PowerDNS address."
     _err "Please set PDNS_Url and try again."
     return 1
   fi
 
   if [ -z "$PDNS_ServerId" ]; then
+    PDNS_ServerId=""
     _err "You don't specify PowerDNS server id."
     _err "Please set you PDNS_ServerId and try again."
     return 1
   fi
 
   if [ -z "$PDNS_Token" ]; then
+    PDNS_Token=""
     _err "You don't specify PowerDNS token."
     _err "Please create you PDNS_Token and try again."
     return 1
   fi
 
   if [ -z "$PDNS_Ttl" ]; then
-    PDNS_Ttl=$DEFAULT_PDNS_TTL
+    PDNS_Ttl="$DEFAULT_PDNS_TTL"
   fi
 
   #save the api addr and key to the account conf file.
@@ -47,8 +52,8 @@ dns_pdns_add() {
     _saveaccountconf PDNS_Ttl "$PDNS_Ttl"
   fi
 
-  _debug "First detect the root zone"
-  if ! _get_root $fulldomain; then
+  _debug "Detect root zone"
+  if ! _get_root "$fulldomain"; then
     _err "invalid domain"
     return 1
   fi
@@ -65,6 +70,18 @@ dns_pdns_add() {
 dns_pdns_rm() {
   fulldomain=$1
 
+  _debug "Detect root zone"
+  if ! _get_root "$fulldomain"; then
+    _err "invalid domain"
+    return 1
+  fi
+  _debug _domain "$_domain"
+
+  if ! rm_record "$_domain" "$fulldomain"; then
+    return 1
+  fi
+
+  return 0
 }
 
 set_record() {
@@ -73,45 +90,73 @@ set_record() {
   full=$2
   txtvalue=$3
 
-  if ! _pdns_rest "PATCH" "/api/v1/servers/$PDNS_ServerId/zones/$root." "{\"rrsets\": [{\"name\": \"$full.\", \"changetype\": \"REPLACE\", \"type\": \"TXT\", \"ttl\": $PDNS_Ttl, \"records\": [{\"name\": \"$full.\", \"type\": \"TXT\", \"content\": \"\\\"$txtvalue\\\"\", \"disabled\": false, \"ttl\": $PDNS_Ttl}]}]}"; then
+  if ! _pdns_rest "PATCH" "/api/v1/servers/$PDNS_ServerId/zones/$root." "{\"rrsets\": [{\"changetype\": \"REPLACE\", \"name\": \"$full.\", \"type\": \"TXT\", \"ttl\": $PDNS_Ttl, \"records\": [{\"name\": \"$full.\", \"type\": \"TXT\", \"content\": \"\\\"$txtvalue\\\"\", \"disabled\": false, \"ttl\": $PDNS_Ttl}]}]}"; then
     _err "Set txt record error."
     return 1
   fi
-  if ! _pdns_rest "PUT" "/api/v1/servers/$PDNS_ServerId/zones/$root./notify"; then
-    _err "Notify servers error."
+
+  if ! notify_slaves "$root"; then
     return 1
   fi
+
   return 0
 }
 
-####################  Private functions bellow ##################################
+rm_record() {
+  _info "Remove record"
+  root=$1
+  full=$2
+
+  if ! _pdns_rest "PATCH" "/api/v1/servers/$PDNS_ServerId/zones/$root." "{\"rrsets\": [{\"changetype\": \"DELETE\", \"name\": \"$full.\", \"type\": \"TXT\"}]}"; then
+    _err "Delete txt record error."
+    return 1
+  fi
+
+  if ! notify_slaves "$root"; then
+    return 1
+  fi
+
+  return 0
+}
+
+notify_slaves() {
+  root=$1
+
+  if ! _pdns_rest "PUT" "/api/v1/servers/$PDNS_ServerId/zones/$root./notify"; then
+    _err "Notify slaves error."
+    return 1
+  fi
+
+  return 0
+}
+
+####################  Private functions below ##################################
 #_acme-challenge.www.domain.com
 #returns
 # _domain=domain.com
 _get_root() {
   domain=$1
   i=1
-  p=1
 
   if _pdns_rest "GET" "/api/v1/servers/$PDNS_ServerId/zones"; then
-    _zones_response=$response
+    _zones_response="$response"
   fi
 
-  while [ '1' ]; do
-    h=$(printf $domain | cut -d . -f $i-100)
+  while true; do
+    h=$(printf "%s" "$domain" | cut -d . -f $i-100)
     if [ -z "$h" ]; then
       return 1
     fi
 
-    if printf "$_zones_response" | grep "\"name\": \"$h.\"" >/dev/null; then
-      _domain=$h
+    if _contains "$_zones_response" "\"name\": \"$h.\""; then
+      _domain="$h"
       return 0
     fi
 
-    p=$i
-    i=$(expr $i + 1)
+    i=$(_math $i + 1)
   done
   _debug "$domain not found"
+
   return 1
 }
 
