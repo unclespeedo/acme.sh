@@ -103,7 +103,7 @@ _get_root() {
     fi
 
     if _contains "$response" "\"name\":\"$h\""; then
-      _domain_id=$(printf "%s\n" "$response" | _egrep_o "\"id\":[^,]*" | head -n 1 | cut -d : -f 2)
+      _domain_id=$(printf "%s\n" "$response" | _egrep_o "\"id\":[^,]*" | head -n 1 | cut -d : -f 2 | tr -d '}')
       if [ "$_domain_id" ]; then
         _sub_domain=$(printf "%s" "$domain" | cut -d . -f 1-$p)
         _domain="$h"
@@ -126,9 +126,9 @@ _me_rest() {
   cdate=$(date -u +"%a, %d %b %Y %T %Z")
   hmac=$(printf "%s" "$cdate" | _hmac sha1 "$(_hex "$ME_Secret")" hex)
 
-  _H1="x-dnsme-apiKey: $ME_Key"
-  _H2="x-dnsme-requestDate: $cdate"
-  _H3="x-dnsme-hmac: $hmac"
+  export _H1="x-dnsme-apiKey: $ME_Key"
+  export _H2="x-dnsme-requestDate: $cdate"
+  export _H3="x-dnsme-hmac: $hmac"
 
   if [ "$data" ]; then
     _debug data "$data"

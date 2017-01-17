@@ -573,7 +573,7 @@ _createkey() {
 _is_idn() {
   _is_idn_d="$1"
   _debug2 _is_idn_d "$_is_idn_d"
-  _idn_temp=$(printf "%s" "$_is_idn_d" | tr -d '[0-9]' | tr -d '[a-z]' | tr -d '[A-Z]' | tr -d '.,-')
+  _idn_temp=$(printf "%s" "$_is_idn_d" | tr -d '0-9' | tr -d 'a-z' | tr -d 'A-Z' | tr -d '.,-')
   _debug2 _idn_temp "$_idn_temp"
   [ "$_idn_temp" ]
 }
@@ -2356,6 +2356,12 @@ __get_domain_new_authz() {
       _err "Can not get domain new authz."
       return 1
     fi
+    if _contains "$response" "No registration exists matching provided key"; then
+      _err "It seems there is an error, but it's recovered now, please try again."
+      _err "If you see this message for a second time, please report bug: $(__green "$PROJECT")"
+      _clearcaconf "CA_KEY_HASH"
+      break
+    fi
     if ! _contains "$response" "An error occurred while processing your request"; then
       _info "The new-authz request is ok."
       break
@@ -2385,6 +2391,10 @@ issue() {
   Le_Webroot="$1"
   Le_Domain="$2"
   Le_Alt="$3"
+  if _contains "$Le_Domain" ","; then
+    Le_Domain=$(echo "$2,$3" | cut -d , -f 1)
+    Le_Alt=$(echo "$2,$3" | cut -d , -f 2- | sed "s/,${NO_VALUE}$//")
+  fi
   Le_Keylength="$4"
   Le_RealCertPath="$5"
   Le_RealKeyPath="$6"
@@ -3361,15 +3371,18 @@ installcronjob() {
       _err "Can not install cronjob, $PROJECT_ENTRY not found."
       return 1
     fi
+
+    _t=$(_time)
+    random_minute=$(_math $_t % 60)
     if _exists uname && uname -a | grep SunOS >/dev/null; then
       crontab -l | {
         cat
-        echo "0 0 * * * $lesh --cron --home \"$LE_WORKING_DIR\" > /dev/null"
+        echo "$random_minute 0 * * * $lesh --cron --home \"$LE_WORKING_DIR\" > /dev/null"
       } | crontab --
     else
       crontab -l | {
         cat
-        echo "0 0 * * * $lesh --cron --home \"$LE_WORKING_DIR\" > /dev/null"
+        echo "$random_minute 0 * * * $lesh --cron --home \"$LE_WORKING_DIR\" > /dev/null"
       } | crontab -
     fi
   fi
@@ -4534,7 +4547,7 @@ _process() {
 
 if [ "$INSTALLONLINE" ]; then
   INSTALLONLINE=""
-  _installOnline $BRANCH
+  _installOnline
   exit
 fi
 
