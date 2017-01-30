@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.6.5
+VER=2.6.6
 
 PROJECT_NAME="acme.sh"
 
@@ -336,15 +336,245 @@ _h2b() {
   done
 }
 
-#hex string
-_hex() {
-  _str="$1"
-  _str_len=${#_str}
-  _h_i=1
-  while [ "$_h_i" -le "$_str_len" ]; do
-    _str_c="$(printf "%s" "$_str" | cut -c "$_h_i")"
-    printf "%02x" "'$_str_c"
-    _h_i="$(_math "$_h_i" + 1)"
+_is_solaris() {
+  _contains "${__OS__:=$(uname -a)}" "solaris" || _contains "${__OS__:=$(uname -a)}" "SunOS"
+}
+
+#stdin  output hexstr splited by one space
+#input:"abc"
+#output: " 61 62 63"
+_hex_dump() {
+  if _is_solaris; then
+    od -A n -v -t x1 | tr -d "\r\n\t" | tr -s " " | tr -d "\n"
+  else
+    od -A n -v -t x1 | tr -d "\r\n\t" | tr -s " " | sed "s/ $//" | tr -d "\n"
+  fi
+}
+
+#url encode, no-preserved chars
+#A  B  C  D  E  F  G  H  I  J  K  L  M  N  O  P  Q  R  S  T  U  V  W  X  Y  Z
+#41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a
+
+#a  b  c  d  e  f  g  h  i  j  k  l  m  n  o  p  q  r  s  t  u  v  w  x  y  z
+#61 62 63 64 65 66 67 68 69 6a 6b 6c 6d 6e 6f 70 71 72 73 74 75 76 77 78 79 7a
+
+#0  1  2  3  4  5  6  7  8  9  -  _  .  ~
+#30 31 32 33 34 35 36 37 38 39 2d 5f 2e 7e
+
+#stdin stdout
+_url_encode() {
+  _hex_str=$(_hex_dump)
+  _debug3 "_url_encode"
+  _debug3 "_hex_str" "$_hex_str"
+  for _hex_code in $_hex_str; do
+    #upper case
+    case "${_hex_code}" in
+      "41")
+        printf "%s" "A"
+        ;;
+      "42")
+        printf "%s" "B"
+        ;;
+      "43")
+        printf "%s" "C"
+        ;;
+      "44")
+        printf "%s" "D"
+        ;;
+      "45")
+        printf "%s" "E"
+        ;;
+      "46")
+        printf "%s" "F"
+        ;;
+      "47")
+        printf "%s" "G"
+        ;;
+      "48")
+        printf "%s" "H"
+        ;;
+      "49")
+        printf "%s" "I"
+        ;;
+      "4a")
+        printf "%s" "J"
+        ;;
+      "4b")
+        printf "%s" "K"
+        ;;
+      "4c")
+        printf "%s" "L"
+        ;;
+      "4d")
+        printf "%s" "M"
+        ;;
+      "4e")
+        printf "%s" "N"
+        ;;
+      "4f")
+        printf "%s" "O"
+        ;;
+      "50")
+        printf "%s" "P"
+        ;;
+      "51")
+        printf "%s" "Q"
+        ;;
+      "52")
+        printf "%s" "R"
+        ;;
+      "53")
+        printf "%s" "S"
+        ;;
+      "54")
+        printf "%s" "T"
+        ;;
+      "55")
+        printf "%s" "U"
+        ;;
+      "56")
+        printf "%s" "V"
+        ;;
+      "57")
+        printf "%s" "W"
+        ;;
+      "58")
+        printf "%s" "X"
+        ;;
+      "59")
+        printf "%s" "Y"
+        ;;
+      "5a")
+        printf "%s" "Z"
+        ;;
+
+      #lower case
+      "61")
+        printf "%s" "a"
+        ;;
+      "62")
+        printf "%s" "b"
+        ;;
+      "63")
+        printf "%s" "c"
+        ;;
+      "64")
+        printf "%s" "d"
+        ;;
+      "65")
+        printf "%s" "e"
+        ;;
+      "66")
+        printf "%s" "f"
+        ;;
+      "67")
+        printf "%s" "g"
+        ;;
+      "68")
+        printf "%s" "h"
+        ;;
+      "69")
+        printf "%s" "i"
+        ;;
+      "6a")
+        printf "%s" "j"
+        ;;
+      "6b")
+        printf "%s" "k"
+        ;;
+      "6c")
+        printf "%s" "l"
+        ;;
+      "6d")
+        printf "%s" "m"
+        ;;
+      "6e")
+        printf "%s" "n"
+        ;;
+      "6f")
+        printf "%s" "o"
+        ;;
+      "70")
+        printf "%s" "p"
+        ;;
+      "71")
+        printf "%s" "q"
+        ;;
+      "72")
+        printf "%s" "r"
+        ;;
+      "73")
+        printf "%s" "s"
+        ;;
+      "74")
+        printf "%s" "t"
+        ;;
+      "75")
+        printf "%s" "u"
+        ;;
+      "76")
+        printf "%s" "v"
+        ;;
+      "77")
+        printf "%s" "w"
+        ;;
+      "78")
+        printf "%s" "x"
+        ;;
+      "79")
+        printf "%s" "y"
+        ;;
+      "7a")
+        printf "%s" "z"
+        ;;
+      #numbers
+      "30")
+        printf "%s" "0"
+        ;;
+      "31")
+        printf "%s" "1"
+        ;;
+      "32")
+        printf "%s" "2"
+        ;;
+      "33")
+        printf "%s" "3"
+        ;;
+      "34")
+        printf "%s" "4"
+        ;;
+      "35")
+        printf "%s" "5"
+        ;;
+      "36")
+        printf "%s" "6"
+        ;;
+      "37")
+        printf "%s" "7"
+        ;;
+      "38")
+        printf "%s" "8"
+        ;;
+      "39")
+        printf "%s" "9"
+        ;;
+      "2d")
+        printf "%s" "-"
+        ;;
+      "5f")
+        printf "%s" "_"
+        ;;
+      "2e")
+        printf "%s" "."
+        ;;
+      "7e")
+        printf "%s" "~"
+        ;;
+      #other hex  
+      *)
+        printf '%%%s' "$_hex_code"
+        ;;
+    esac
   done
 }
 
@@ -868,7 +1098,7 @@ createCSR() {
 
 }
 
-_urlencode() {
+_url_replace() {
   tr '/+' '_-' | tr -d '= '
 }
 
@@ -935,7 +1165,7 @@ _calcjwk() {
 
     modulus=$($OPENSSL_BIN rsa -in "$keyfile" -modulus -noout | cut -d '=' -f 2)
     _debug3 modulus "$modulus"
-    n="$(printf "%s" "$modulus" | _h2b | _base64 | _urlencode)"
+    n="$(printf "%s" "$modulus" | _h2b | _base64 | _url_replace)"
     _debug3 n "$n"
 
     jwk='{"e": "'$e'", "kty": "RSA", "n": "'$n'"}'
@@ -990,14 +1220,14 @@ _calcjwk() {
     x="$(printf "%s" "$pubtext" | cut -d : -f 2-"$xend")"
     _debug3 x "$x"
 
-    x64="$(printf "%s" "$x" | tr -d : | _h2b | _base64 | _urlencode)"
+    x64="$(printf "%s" "$x" | tr -d : | _h2b | _base64 | _url_replace)"
     _debug3 x64 "$x64"
 
     xend=$(_math "$xend" + 1)
     y="$(printf "%s" "$pubtext" | cut -d : -f "$xend"-10000)"
     _debug3 y "$y"
 
-    y64="$(printf "%s" "$y" | tr -d : | _h2b | _base64 | _urlencode)"
+    y64="$(printf "%s" "$y" | tr -d : | _h2b | _base64 | _url_replace)"
     _debug3 y64 "$y64"
 
     jwk='{"crv": "'$crv'", "kty": "EC", "x": "'$x64'", "y": "'$y64'"}'
@@ -1241,7 +1471,7 @@ _send_signed_request() {
     return 1
   fi
 
-  payload64=$(printf "%s" "$payload" | _base64 | _urlencode)
+  payload64=$(printf "%s" "$payload" | _base64 | _url_replace)
   _debug3 payload64 "$payload64"
 
   if [ -z "$_CACHED_NONCE" ]; then
@@ -1267,7 +1497,7 @@ _send_signed_request() {
   protected="$JWK_HEADERPLACE_PART1$nonce$JWK_HEADERPLACE_PART2"
   _debug3 protected "$protected"
 
-  protected64="$(printf "%s" "$protected" | _base64 | _urlencode)"
+  protected64="$(printf "%s" "$protected" | _base64 | _url_replace)"
   _debug3 protected64 "$protected64"
 
   if ! _sig_t="$(printf "%s" "$protected64.$payload64" | _sign "$keyfile" "sha256")"; then
@@ -1276,7 +1506,7 @@ _send_signed_request() {
   fi
   _debug3 _sig_t "$_sig_t"
 
-  sig="$(printf "%s" "$_sig_t" | _urlencode)"
+  sig="$(printf "%s" "$_sig_t" | _url_replace)"
   _debug3 sig "$sig"
 
   body="{\"header\": $JWK_HEADER, \"protected\": \"$protected64\", \"payload\": \"$payload64\", \"signature\": \"$sig\"}"
@@ -1634,7 +1864,13 @@ __initHome() {
   fi
   export LE_WORKING_DIR
 
-  _DEFAULT_ACCOUNT_CONF_PATH="$LE_WORKING_DIR/account.conf"
+  if [ -z "$LE_CONFIG_HOME" ]; then
+    LE_CONFIG_HOME="$LE_WORKING_DIR"
+  fi
+  _debug "Using config home:$LE_CONFIG_HOME"
+  export LE_CONFIG_HOME
+
+  _DEFAULT_ACCOUNT_CONF_PATH="$LE_CONFIG_HOME/account.conf"
 
   if [ -z "$ACCOUNT_CONF_PATH" ]; then
     if [ -f "$_DEFAULT_ACCOUNT_CONF_PATH" ]; then
@@ -1646,12 +1882,12 @@ __initHome() {
     ACCOUNT_CONF_PATH="$_DEFAULT_ACCOUNT_CONF_PATH"
   fi
 
-  DEFAULT_LOG_FILE="$LE_WORKING_DIR/$PROJECT_NAME.log"
+  DEFAULT_LOG_FILE="$LE_CONFIG_HOME/$PROJECT_NAME.log"
 
-  DEFAULT_CA_HOME="$LE_WORKING_DIR/ca"
+  DEFAULT_CA_HOME="$LE_CONFIG_HOME/ca"
 
   if [ -z "$LE_TEMP_DIR" ]; then
-    LE_TEMP_DIR="$LE_WORKING_DIR/tmp"
+    LE_TEMP_DIR="$LE_CONFIG_HOME/tmp"
   fi
 }
 
@@ -1703,7 +1939,7 @@ _initpath() {
   fi
 
   if [ -z "$APACHE_CONF_BACKUP_DIR" ]; then
-    APACHE_CONF_BACKUP_DIR="$LE_WORKING_DIR"
+    APACHE_CONF_BACKUP_DIR="$LE_CONFIG_HOME"
   fi
 
   if [ -z "$USER_AGENT" ]; then
@@ -1711,7 +1947,7 @@ _initpath() {
   fi
 
   if [ -z "$HTTP_HEADER" ]; then
-    HTTP_HEADER="$LE_WORKING_DIR/http.header"
+    HTTP_HEADER="$LE_CONFIG_HOME/http.header"
   fi
 
   _OLD_ACCOUNT_KEY="$LE_WORKING_DIR/account.key"
@@ -1727,7 +1963,7 @@ _initpath() {
     ACCOUNT_JSON_PATH="$_DEFAULT_ACCOUNT_JSON_PATH"
   fi
 
-  _DEFAULT_CERT_HOME="$LE_WORKING_DIR"
+  _DEFAULT_CERT_HOME="$LE_CONFIG_HOME"
   if [ -z "$CERT_HOME" ]; then
     CERT_HOME="$_DEFAULT_CERT_HOME"
   fi
@@ -1999,7 +2235,7 @@ _clearupdns() {
     keyauthorization=$(echo "$ventry" | cut -d "$sep" -f 2)
     vtype=$(echo "$ventry" | cut -d "$sep" -f 4)
     _currentRoot=$(echo "$ventry" | cut -d "$sep" -f 5)
-    txt="$(printf "%s" "$keyauthorization" | _digest "sha256" | _urlencode)"
+    txt="$(printf "%s" "$keyauthorization" | _digest "sha256" | _url_replace)"
     _debug txt "$txt"
     if [ "$keyauthorization" = "$STATE_VERIFIED" ]; then
       _info "$d is already verified, skip $vtype."
@@ -2543,7 +2779,7 @@ issue() {
 
       if [ -z "$thumbprint" ]; then
         accountkey_json=$(printf "%s" "$jwk" | tr -d ' ')
-        thumbprint=$(printf "%s" "$accountkey_json" | _digest "sha256" | _urlencode)
+        thumbprint=$(printf "%s" "$accountkey_json" | _digest "sha256" | _url_replace)
       fi
 
       entry="$(printf "%s\n" "$response" | _egrep_o '[^\{]*"type":"'$vtype'"[^\}]*')"
@@ -2594,7 +2830,7 @@ issue() {
         dnsadded='0'
         txtdomain="_acme-challenge.$d"
         _debug txtdomain "$txtdomain"
-        txt="$(printf "%s" "$keyauthorization" | _digest "sha256" | _urlencode)"
+        txt="$(printf "%s" "$keyauthorization" | _digest "sha256" | _url_replace)"
         _debug txt "$txt"
 
         d_api="$(_findHook "$d" dnsapi "$_currentRoot")"
@@ -2869,7 +3105,7 @@ issue() {
 
   _clearup
   _info "Verify finished, start to sign."
-  der="$(_getfile "${CSR_PATH}" "${BEGIN_CSR}" "${END_CSR}" | tr -d "\r\n" | _urlencode)"
+  der="$(_getfile "${CSR_PATH}" "${BEGIN_CSR}" "${END_CSR}" | tr -d "\r\n" | _url_replace)"
 
   if ! _send_signed_request "$API/acme/new-cert" "{\"resource\": \"new-cert\", \"csr\": \"$der\"}" "needbase64"; then
     _err "Sign failed."
@@ -3343,9 +3579,14 @@ _installcert() {
   fi
 
   if [ "$Le_ReloadCmd" ]; then
-
     _info "Run Le_ReloadCmd: $Le_ReloadCmd"
-    if (cd "$DOMAIN_PATH" && eval "$Le_ReloadCmd"); then
+    if (
+      export CERT_PATH
+      export CERT_KEY_PATH
+      export CA_CERT_PATH
+      export CERT_FULLCHAIN_PATH
+      cd "$DOMAIN_PATH" && eval "$Le_ReloadCmd"
+    ); then
       _info "$(__green "Reload success")"
     else
       _err "Reload error for :$Le_Domain"
@@ -3354,7 +3595,9 @@ _installcert() {
 
 }
 
+#confighome
 installcronjob() {
+  _c_home="$1"
   _initpath
   if ! _exists "crontab"; then
     _err "crontab doesn't exist, so, we can not install cron jobs."
@@ -3372,17 +3615,20 @@ installcronjob() {
       return 1
     fi
 
+    if [ "$_c_home" ]; then
+      _c_entry="--config-home \"$_c_home\" "
+    fi
     _t=$(_time)
     random_minute=$(_math $_t % 60)
     if _exists uname && uname -a | grep SunOS >/dev/null; then
       crontab -l | {
         cat
-        echo "$random_minute 0 * * * $lesh --cron --home \"$LE_WORKING_DIR\" > /dev/null"
+        echo "$random_minute 0 * * * $lesh --cron --home \"$LE_WORKING_DIR\" $_c_entry> /dev/null"
       } | crontab --
     else
       crontab -l | {
         cat
-        echo "$random_minute 0 * * * $lesh --cron --home \"$LE_WORKING_DIR\" > /dev/null"
+        echo "$random_minute 0 * * * $lesh --cron --home \"$LE_WORKING_DIR\" $_c_entry> /dev/null"
       } | crontab -
     fi
   fi
@@ -3408,6 +3654,10 @@ uninstallcronjob() {
     fi
     LE_WORKING_DIR="$(echo "$cr" | cut -d ' ' -f 9 | tr -d '"')"
     _info LE_WORKING_DIR "$LE_WORKING_DIR"
+    if _contains "$cr" "--config-home"; then
+      LE_CONFIG_HOME="$(echo "$cr" | cut -d ' ' -f 11 | tr -d '"')"
+      _debug LE_CONFIG_HOME "$LE_CONFIG_HOME"
+    fi
   fi
   _initpath
 
@@ -3416,7 +3666,7 @@ uninstallcronjob() {
 revoke() {
   Le_Domain="$1"
   if [ -z "$Le_Domain" ]; then
-    _usage "Usage: $PROJECT_ENTRY --revoke -d domain.com"
+    _usage "Usage: $PROJECT_ENTRY --revoke -d domain.com  [--ecc]"
     return 1
   fi
 
@@ -3433,7 +3683,7 @@ revoke() {
     return 1
   fi
 
-  cert="$(_getfile "${CERT_PATH}" "${BEGIN_CERT}" "${END_CERT}" | tr -d "\r\n" | _urlencode)"
+  cert="$(_getfile "${CERT_PATH}" "${BEGIN_CERT}" "${END_CERT}" | tr -d "\r\n" | _url_replace)"
 
   if [ -z "$cert" ]; then
     _err "Cert for $Le_Domain is empty found, skip."
@@ -3472,6 +3722,37 @@ revoke() {
     fi
   fi
   return 1
+}
+
+#domain  ecc
+remove() {
+  Le_Domain="$1"
+  if [ -z "$Le_Domain" ]; then
+    _usage "Usage: $PROJECT_ENTRY --remove -d domain.com [--ecc]"
+    return 1
+  fi
+
+  _isEcc="$2"
+
+  _initpath "$Le_Domain" "$_isEcc"
+  _removed_conf="$DOMAIN_CONF.removed"
+  if [ ! -f "$DOMAIN_CONF" ]; then
+    if [ -f "$_removed_conf" ]; then
+      _err "$Le_Domain is already removed, You can remove the folder by yourself: $DOMAIN_PATH"
+    else
+      _err "$Le_Domain is not a issued domain, skip."
+    fi
+    return 1
+  fi
+
+  if mv "$DOMAIN_CONF" "$_removed_conf"; then
+    _info "$Le_Domain is removed, the key and cert files are in $(__green $DOMAIN_PATH)"
+    _info "You can remove them by yourself."
+    return 0
+  else
+    _err "Remove $Le_Domain failed."
+    return 1
+  fi
 }
 
 #domain vtype
@@ -3671,7 +3952,9 @@ _setShebang() {
   rm -f "$_file.tmp"
 }
 
+#confighome
 _installalias() {
+  _c_home="$1"
   _initpath
 
   _envfile="$LE_WORKING_DIR/$PROJECT_ENTRY.env"
@@ -3681,8 +3964,15 @@ _installalias() {
     echo "$(cat "$_envfile")" | sed "s|^alias le.sh.*$||" >"$_envfile"
   fi
 
+  if [ "$_c_home" ]; then
+    _c_entry=" --config-home '$_c_home'"
+  fi
+
   _setopt "$_envfile" "export LE_WORKING_DIR" "=" "\"$LE_WORKING_DIR\""
-  _setopt "$_envfile" "alias $PROJECT_ENTRY" "=" "\"$LE_WORKING_DIR/$PROJECT_ENTRY\""
+  if [ "$_c_home" ]; then
+    _setopt "$_envfile" "export LE_CONFIG_HOME" "=" "\"$LE_CONFIG_HOME\""
+  fi
+  _setopt "$_envfile" "alias $PROJECT_ENTRY" "=" "\"$LE_WORKING_DIR/$PROJECT_ENTRY$_c_entry\""
 
   _profile="$(_detect_profile)"
   if [ "$_profile" ]; then
@@ -3700,7 +3990,10 @@ _installalias() {
   if [ -f "$_csh_profile" ]; then
     _info "Installing alias to '$_csh_profile'"
     _setopt "$_cshfile" "setenv LE_WORKING_DIR" " " "\"$LE_WORKING_DIR\""
-    _setopt "$_cshfile" "alias $PROJECT_ENTRY" " " "\"$LE_WORKING_DIR/$PROJECT_ENTRY\""
+    if [ "$_c_home" ]; then
+      _setopt "$_cshfile" "setenv LE_CONFIG_HOME" " " "\"$LE_CONFIG_HOME\""
+    fi
+    _setopt "$_cshfile" "alias $PROJECT_ENTRY" " " "\"$LE_WORKING_DIR/$PROJECT_ENTRY$_c_entry\""
     _setopt "$_csh_profile" "source \"$_cshfile\""
   fi
 
@@ -3709,13 +4002,16 @@ _installalias() {
   if [ -f "$_tcsh_profile" ]; then
     _info "Installing alias to '$_tcsh_profile'"
     _setopt "$_cshfile" "setenv LE_WORKING_DIR" " " "\"$LE_WORKING_DIR\""
-    _setopt "$_cshfile" "alias $PROJECT_ENTRY" " " "\"$LE_WORKING_DIR/$PROJECT_ENTRY\""
+    if [ "$_c_home" ]; then
+      _setopt "$_cshfile" "setenv LE_CONFIG_HOME" " " "\"$LE_CONFIG_HOME\""
+    fi
+    _setopt "$_cshfile" "alias $PROJECT_ENTRY" " " "\"$LE_WORKING_DIR/$PROJECT_ENTRY$_c_entry\""
     _setopt "$_tcsh_profile" "source \"$_cshfile\""
   fi
 
 }
 
-# nocron
+# nocron confighome
 install() {
 
   if [ -z "$LE_WORKING_DIR" ]; then
@@ -3723,6 +4019,7 @@ install() {
   fi
 
   _nocron="$1"
+  _c_home="$2"
   if ! _initpath; then
     _err "Install failed."
     return 1
@@ -3761,6 +4058,13 @@ install() {
 
   chmod 700 "$LE_WORKING_DIR"
 
+  if ! mkdir -p "$LE_CONFIG_HOME"; then
+    _err "Can not create config dir: $LE_CONFIG_HOME"
+    return 1
+  fi
+
+  chmod 700 "$LE_CONFIG_HOME"
+
   cp "$PROJECT_ENTRY" "$LE_WORKING_DIR/" && chmod +x "$LE_WORKING_DIR/$PROJECT_ENTRY"
 
   if [ "$?" != "0" ]; then
@@ -3770,7 +4074,7 @@ install() {
 
   _info "Installed to $LE_WORKING_DIR/$PROJECT_ENTRY"
 
-  _installalias
+  _installalias "$_c_home"
 
   for subf in $_SUB_FOLDERS; do
     if [ -d "$subf" ]; then
@@ -3796,7 +4100,7 @@ install() {
   fi
 
   if [ -z "$_nocron" ]; then
-    installcronjob
+    installcronjob "$_c_home"
   fi
 
   if [ -z "$NO_DETECT_SH" ]; then
@@ -3829,7 +4133,7 @@ uninstall() {
   _uninstallalias
 
   rm -f "$LE_WORKING_DIR/$PROJECT_ENTRY"
-  _info "The keys and certs are in $LE_WORKING_DIR, you can remove them by yourself."
+  _info "The keys and certs are in \"$(__green "$LE_CONFIG_HOME")\", you can remove them by yourself."
 
 }
 
@@ -3902,18 +4206,19 @@ Commands:
   --issue                  Issue a cert.
   --signcsr                Issue a cert from an existing csr.
   --deploy                 Deploy the cert to your server.
-  --installcert            Install the issued cert to apache/nginx or any other server.
+  --install-cert           Install the issued cert to apache/nginx or any other server.
   --renew, -r              Renew a cert.
-  --renewAll               Renew all the certs.
+  --renew-all              Renew all the certs.
   --revoke                 Revoke a cert.
+  --remove                 Remove the cert from $PROJECT
   --list                   List all the certs.
   --showcsr                Show the content of a csr.
-  --installcronjob         Install the cron job to renew certs, you don't need to call this. The 'install' command can automatically install the cron job.
-  --uninstallcronjob       Uninstall the cron job. The 'uninstall' command can do this automatically.
+  --install-cronjob        Install the cron job to renew certs, you don't need to call this. The 'install' command can automatically install the cron job.
+  --uninstall-cronjob      Uninstall the cron job. The 'uninstall' command can do this automatically.
   --cron                   Run cron job to renew all the certs.
   --toPkcs                 Export the certificate and key to a pfx file.
-  --updateaccount          Update account info.
-  --registeraccount        Register account key.
+  --update-account         Update account info.
+  --register-account       Register account key.
   --createAccountKey, -cak Create an account private key, professional use.
   --createDomainKey, -cdk  Create an domain private key, professional use.
   --createCSR, -ccsr       Create CSR , professional use.
@@ -3948,7 +4253,8 @@ Parameters:
 
   --accountconf                     Specifies a customized account config file.
   --home                            Specifies the home dir for $PROJECT_NAME .
-  --certhome                        Specifies the home dir to save all the certs, only valid for '--install' command.
+  --cert-home                       Specifies the home dir to save all the certs, only valid for '--install' command.
+  --config-home                     Specifies the home dir to save all the configurations.
   --useragent                       Specifies the user agent string. it will be saved for future use too.
   --accountemail                    Specifies the account email for registering, Only valid for the '--install' command.
   --accountkey                      Specifies the account key path, Only valid for the '--install' command.
@@ -3957,11 +4263,11 @@ Parameters:
   --tlsport                         Specifies the standalone tls listening port. Only valid if the server is behind a reverse proxy or load balancer.
   --local-address                   Specifies the standalone/tls server listening address, in case you have multiple ip addresses.
   --listraw                         Only used for '--list' command, list the certs in raw format.
-  --stopRenewOnError, -se           Only valid for '--renewall' command. Stop if one cert has error in renewal.
+  --stopRenewOnError, -se           Only valid for '--renew-all' command. Stop if one cert has error in renewal.
   --insecure                        Do not check the server certificate, in some devices, the api server's certificate may not be trusted.
   --ca-bundle                       Specifices the path to the CA certificate bundle to verify api server's certificate.
   --nocron                          Only valid for '--install' command, which means: do not install the default cron job. In this case, the certs will not be renewed automatically.
-  --ecc                             Specifies to use the ECC cert. Valid for '--installcert', '--renew', '--revoke', '--toPkcs' and '--createCSR'
+  --ecc                             Specifies to use the ECC cert. Valid for '--install-cert', '--renew', '--revoke', '--toPkcs' and '--createCSR'
   --csr                             Specifies the input csr.
   --pre-hook                        Command to be run before obtaining any certificates.
   --post-hook                       Command to be run after attempting to obtain/renew certificates. No matter the obain/renew is success or failed.
@@ -4070,6 +4376,7 @@ _process() {
   _accountemail=""
   _accountkey=""
   _certhome=""
+  _confighome=""
   _httpport=""
   _tlsport=""
   _dnssleep=""
@@ -4124,25 +4431,28 @@ _process() {
       --showcsr)
         _CMD="showcsr"
         ;;
-      --installcert | -i)
+      --installcert | -i | --install-cert)
         _CMD="installcert"
         ;;
       --renew | -r)
         _CMD="renew"
         ;;
-      --renewAll | --renewall)
+      --renewAll | --renewall | --renew-all)
         _CMD="renewAll"
         ;;
       --revoke)
         _CMD="revoke"
         ;;
+      --remove)
+        _CMD="remove"
+        ;;
       --list)
         _CMD="list"
         ;;
-      --installcronjob)
+      --installcronjob | --install-cronjob)
         _CMD="installcronjob"
         ;;
-      --uninstallcronjob)
+      --uninstallcronjob | --uninstall-cronjob)
         _CMD="uninstallcronjob"
         ;;
       --cron)
@@ -4163,10 +4473,10 @@ _process() {
       --deactivate)
         _CMD="deactivate"
         ;;
-      --updateaccount)
+      --updateaccount | --update-account)
         _CMD="updateaccount"
         ;;
-      --registeraccount)
+      --registeraccount | --register-account)
         _CMD="registeraccount"
         ;;
       --domain | -d)
@@ -4308,9 +4618,14 @@ _process() {
         LE_WORKING_DIR="$2"
         shift
         ;;
-      --certhome)
+      --certhome | --cert-home)
         _certhome="$2"
         CERT_HOME="$_certhome"
+        shift
+        ;;
+      --config-home)
+        _confighome="$2"
+        LE_CONFIG_HOME="$_confighome"
         shift
         ;;
       --useragent)
@@ -4463,7 +4778,7 @@ _process() {
   fi
 
   case "${_CMD}" in
-    install) install "$_nocron" ;;
+    install) install "$_nocron" "$_confighome" ;;
     uninstall) uninstall "$_nocron" ;;
     upgrade) upgrade ;;
     issue)
@@ -4490,6 +4805,9 @@ _process() {
     revoke)
       revoke "$_domain" "$_ecc"
       ;;
+    remove)
+      remove "$_domain" "$_ecc"
+      ;;
     deactivate)
       deactivate "$_domain,$_altdomains"
       ;;
@@ -4502,7 +4820,7 @@ _process() {
     list)
       list "$_listraw"
       ;;
-    installcronjob) installcronjob ;;
+    installcronjob) installcronjob "$_confighome" ;;
     uninstallcronjob) uninstallcronjob ;;
     cron) cron ;;
     toPkcs)
@@ -4519,7 +4837,9 @@ _process() {
       ;;
 
     *)
-      _err "Invalid command: $_CMD"
+      if [ "$_CMD" ]; then
+        _err "Invalid command: $_CMD"
+      fi
       showhelp
       return 1
       ;;
