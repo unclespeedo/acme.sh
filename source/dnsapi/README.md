@@ -257,6 +257,54 @@ acme.sh --issue --dns dns_ad -d example.com -d www.example.com
 The `AD_API_KEY` will be saved in `~/.acme.sh/account.conf` and will be reused
 when needed.
 
+## 14. Use Linode domain API
+
+First you need to login to your Linode account to get your API Key.
+[https://manager.linode.com/profile/api](https://manager.linode.com/profile/api)
+
+Then add an API key with label *ACME* and copy the new key.
+
+```sh
+export LINODE_API_KEY="..."
+```
+
+Due to the reload time of any changes in the DNS records, we have to use the `dnssleep` option to wait at least 15 minutes for the changes to take effect.
+
+Ok, let's issue a cert now:
+
+```sh
+acme.sh --issue --dns dns_linode --dnssleep 900 -d example.com -d www.example.com
+```
+
+The `LINODE_API_KEY` will be saved in `~/.acme.sh/account.conf` and will be reused when needed.
+
+## 15. Use FreeDNS
+
+FreeDNS (https://freedns.afraid.org/) does not provide an API to update DNS records (other than IPv4 and IPv6
+dynamic DNS addresses).  The acme.sh plugin therefore retrieves and updates domain TXT records by logging
+into the FreeDNS website to read the HTML and posting updates as HTTP.  The plugin needs to know your
+userid and password for the FreeDNS website.
+
+```sh
+export FREEDNS_User="..."
+export FREEDNS_Password="..."
+```
+
+You need only provide this the first time you run the acme.sh client with FreeDNS validation and then again
+whenever you change your password at the FreeDNS site.  The acme.sh FreeDNS plugin does not store your userid
+or password but rather saves an authentication token returned by FreeDNS in `~/.acme.sh/account.conf` and
+reuses that when needed.
+
+Now you can issue a certificate.
+
+```sh
+acme.sh --issue --dns dns_freedns -d example.com -d www.example.com
+```
+
+Note that you cannot use acme.sh automatic DNS validation for FreeDNS public domains or for a subdomain that
+you create under a FreeDNS public domain.  You must own the top level domain in order to automaitcally
+validate with acme.sh at FreeDNS.
+
 # Use custom API
 
 If your API is not supported yet, you can write your own DNS API.
