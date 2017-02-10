@@ -364,8 +364,16 @@ _ascii_hex() {
 #input:"abc"
 #output: " 61 62 63"
 _hex_dump() {
-  #in wired some system, the od command is missing.
-  if ! od -A n -v -t x1 | tr -d "\r\t" | tr -s " " | sed "s/ $//" | tr -d "\n" 2>/dev/null; then
+  if _exists od; then
+    od -A n -v -t x1 | tr -s " " | sed 's/ $//' | tr -d "\r\t\n"
+  elif _exists hexdump; then
+    _debug3 "using hexdump"
+    hexdump -v -e '/1 ""' -e '/1 " %02x" ""'
+  elif _exists xxd; then
+    _debug3 "using xxd"
+    xxd -ps -c 20 -i | sed "s/ 0x/ /g" | tr -d ",\n" | tr -s " "
+  else
+    _debug3 "using _ascii_hex"
     str=$(cat)
     _ascii_hex "$str"
   fi
@@ -896,7 +904,11 @@ _createcsr() {
 
   _csr_cn="$(_idn "$domain")"
   _debug2 _csr_cn "$_csr_cn"
-  $OPENSSL_BIN req -new -sha256 -key "$csrkey" -subj "/CN=$_csr_cn" -config "$csrconf" -out "$csr"
+  if _contains "$(uname -a)" "MINGW"; then
+    $OPENSSL_BIN req -new -sha256 -key "$csrkey" -subj "//CN=$_csr_cn" -config "$csrconf" -out "$csr"
+  else
+    $OPENSSL_BIN req -new -sha256 -key "$csrkey" -subj "/CN=$_csr_cn" -config "$csrconf" -out "$csr"
+  fi
 }
 
 #_signcsr key  csr  conf cert
@@ -4234,7 +4246,7 @@ Commands:
   --version, -v            Show version info.
   --install                Install $PROJECT_NAME to your system.
   --uninstall              Uninstall $PROJECT_NAME, and uninstall the cron job.
-  --upgrade                Upgrade $PROJECT_NAME to the latest code from $PROJECT .
+  --upgrade                Upgrade $PROJECT_NAME to the latest code from $PROJECT.
   --issue                  Issue a cert.
   --signcsr                Issue a cert from an existing csr.
   --deploy                 Deploy the cert to your server.
