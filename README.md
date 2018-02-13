@@ -1,6 +1,10 @@
 # An ACME Shell script: acme.sh [![Build Status](https://travis-ci.org/Neilpang/acme.sh.svg?branch=master)](https://travis-ci.org/Neilpang/acme.sh)
+
+[![Join the chat at https://gitter.im/acme-sh/Lobby](https://badges.gitter.im/acme-sh/Lobby.svg)](https://gitter.im/acme-sh/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 - An ACME protocol client written purely in Shell (Unix shell) language.
 - Full ACME protocol implementation.
+- Support ACME v1 and ACME v2
+- Support ACME v2 wildcard certs
 - Simple, powerful and very easy to use. You only need 3 minutes to learn it.
 - Bash, dash and sh compatible.
 - Simplest shell script for Let's Encrypt free certificate client.
@@ -8,6 +12,7 @@
 - Just one script to issue, renew and install your certificates automatically.
 - DOES NOT require `root/sudoer` access.
 - Docker friendly
+- IPv6 support
 
 It's probably the `easiest & smartest` shell script to automatically issue & renew the free certificates from Let's Encrypt.
 
@@ -59,7 +64,7 @@ Twitter: [@neilpangxa](https://twitter.com/neilpangxa)
 |19|[![](https://cdn.rawgit.com/Neilpang/acmetest/master/status/gentoo-stage3-amd64.svg)](https://github.com/Neilpang/letest#here-are-the-latest-status)|Gentoo Linux
 |20|[![Build Status](https://travis-ci.org/Neilpang/acme.sh.svg?branch=master)](https://travis-ci.org/Neilpang/acme.sh)|Mac OSX
 
-For all build statuses, check our [daily build project](https://github.com/Neilpang/acmetest):
+For all build statuses, check our [weekly build project](https://github.com/Neilpang/acmetest):
 
 https://github.com/Neilpang/acmetest
 
@@ -124,7 +129,7 @@ Ok, you are ready to issue certs now.
 
 Show help message:
 
-```
+```sh
 root@v1:~# acme.sh -h
 ```
 
@@ -161,16 +166,16 @@ You must have at least one domain there.
 
 You must point and bind all the domains to the same webroot dir: `/home/wwwroot/example.com`.
 
-Generated/issued certs will be placed in `~/.acme.sh/example.com/`
+The certs will be placed in `~/.acme.sh/example.com/`
 
-The issued cert will be renewed automatically every **60** days.
+The certs will be renewed automatically every **60** days.
 
 More examples: https://github.com/Neilpang/acme.sh/wiki/How-to-issue-a-cert
 
 
-# 3. Install the issued cert to Apache/Nginx etc.
+# 3. Install the cert to Apache/Nginx etc.
 
-After you issue a cert, you probably want to install/copy the cert to your Apache/Nginx or other servers.
+After the cert is generated, you probably want to install/copy the cert to your Apache/Nginx or other servers.
 You **MUST** use this command to copy the certs to the target files, **DO NOT** use the certs files in **~/.acme.sh/** folder, they are for internal use only, the folder structure may change in the future.
 
 **Apache** example:
@@ -192,11 +197,11 @@ acme.sh --install-cert -d example.com \
 
 Only the domain is required, all the other parameters are optional.
 
-The ownership and permission info of existing files are preserved. You may want to precreate the files to have defined ownership and permission.
+The ownership and permission info of existing files are preserved. You can pre-create the files to define the ownership and permission.
 
-Install/copy the issued cert/key to the production Apache or Nginx path.
+Install/copy the cert/key to the production Apache or Nginx path.
 
-The cert will be `renewed every **60** days by default` (which is configurable). Once the cert is renewed, the Apache/Nginx service will be restarted automatically by the command: `service apache2 restart` or `service nginx restart`.
+The cert will be renewed every **60** days by default (which is configurable). Once the cert is renewed, the Apache/Nginx service will be reloaded automatically by the command: `service apache2 force-reload` or `service nginx force-reload`.
 
 
 # 4. Use Standalone server to issue cert
@@ -237,7 +242,7 @@ Particularly, if you are running an Apache server, you should use Apache mode in
 
 Just set string "apache" as the second argument and it will force use of apache plugin automatically.
 
-```
+```sh
 acme.sh --issue --apache -d example.com -d www.example.com -d cp.example.com
 ```
 
@@ -257,15 +262,75 @@ It will configure nginx server automatically to verify the domain and then resto
 
 So, the config is not changed.
 
-```
+```sh
 acme.sh --issue --nginx -d example.com -d www.example.com -d cp.example.com
 ```
 
 More examples: https://github.com/Neilpang/acme.sh/wiki/How-to-issue-a-cert
 
-# 8. Use DNS mode:
+# 8. Automatic DNS API integration
 
-Support the `dns-01` challenge.
+If your DNS provider supports API access, we can use that API to automatically issue the certs.
+
+You don't have to do anything manually!
+
+### Currently acme.sh supports:
+
+1. CloudFlare.com API
+1. DNSPod.cn API
+1. CloudXNS.com API
+1. GoDaddy.com API
+1. PowerDNS.com API
+1. OVH, kimsufi, soyoustart and runabove API
+1. nsupdate API
+1. LuaDNS.com API
+1. DNSMadeEasy.com API
+1. AWS Route 53
+1. aliyun.com(阿里云) API
+1. ISPConfig 3.1 API
+1. Alwaysdata.com API
+1. Linode.com API
+1. FreeDNS (https://freedns.afraid.org/)
+1. cyon.ch
+1. Domain-Offensive/Resellerinterface/Domainrobot API
+1. Gandi LiveDNS API
+1. Knot DNS API
+1. DigitalOcean API (native)
+1. ClouDNS.net API
+1. Infoblox NIOS API (https://www.infoblox.com/)
+1. VSCALE (https://vscale.io/)
+1. Dynu API (https://www.dynu.com)
+1. DNSimple API
+1. NS1.com API
+1. DuckDNS.org API
+1. Name.com API
+1. Dyn Managed DNS API
+1. Yandex PDD API (https://pdd.yandex.ru)
+1. Hurricane Electric DNS service (https://dns.he.net)
+1. UnoEuro API (https://www.unoeuro.com/)
+1. INWX (https://www.inwx.de/)
+1. Servercow (https://servercow.de)
+1. Namesilo (https://www.namesilo.com)
+1. InternetX autoDNS API (https://internetx.com)
+1. Azure DNS
+1. selectel.com(selectel.ru) DNS API
+1. zonomi.com DNS API
+And: 
+
+1. lexicon DNS API: https://github.com/Neilpang/acme.sh/wiki/How-to-use-lexicon-dns-api
+   (DigitalOcean, DNSimple, DNSMadeEasy, DNSPark, EasyDNS, Namesilo, NS1, PointHQ, Rage4 and Vultr etc.)
+
+
+   
+**More APIs coming soon...**
+
+If your DNS provider is not on the supported list above, you can write your own DNS API script easily. If you do, please consider submitting a [Pull Request](https://github.com/Neilpang/acme.sh/pulls) and contribute it to the project.
+
+For more details: [How to use DNS API](dnsapi)
+
+# 9. Use DNS manual mode:
+
+If your dns provider doesn't support any api access, you will have to add the txt record by your hand.
 
 ```bash
 acme.sh --issue --dns -d example.com -d www.example.com -d cp.example.com
@@ -273,7 +338,7 @@ acme.sh --issue --dns -d example.com -d www.example.com -d cp.example.com
 
 You should get an output like below:
 
-```
+```sh
 Add the following txt record:
 Domain:_acme-challenge.example.com
 Txt value:9ihDbjYfTExAYeDs4DBUeuTo18KBzwvTEjUnSwd32-c
@@ -291,52 +356,11 @@ Then just rerun with `renew` argument:
 acme.sh --renew -d example.com
 ```
 
-Ok, it's finished.
+Ok, it's done.
 
+**Take care, this is dns manual mode, it can not be renewed automatically. you will have to add a new txt record to your domain by your hand when you renew your cert.**
 
-# 9. Automatic DNS API integration
-
-If your DNS provider supports API access, we can use that API to automatically issue the certs.
-
-You don't have to do anything manually!
-
-### Currently acme.sh supports:
-
-1. CloudFlare.com API
-1. DNSPod.cn API
-1. DNSimple API
-1. CloudXNS.com API
-1. GoDaddy.com API
-1. OVH, kimsufi, soyoustart and runabove API
-1. AWS Route 53
-1. PowerDNS.com API
-1. lexicon DNS API: https://github.com/Neilpang/acme.sh/wiki/How-to-use-lexicon-dns-api
-   (DigitalOcean, DNSimple, DNSMadeEasy, DNSPark, EasyDNS, Namesilo, NS1, PointHQ, Rage4 and Vultr etc.)
-1. LuaDNS.com API
-1. DNSMadeEasy.com API
-1. nsupdate API
-1. aliyun.com(阿里云) API
-1. ISPConfig 3.1 API
-1. Alwaysdata.com API
-1. Linode.com API
-1. FreeDNS (https://freedns.afraid.org/)
-1. cyon.ch
-1. Domain-Offensive/Resellerinterface/Domainrobot API
-1. Gandi LiveDNS API
-1. Knot DNS API
-1. DigitalOcean API (native)
-1. ClouDNS.net API
-1. Infoblox NIOS API (https://www.infoblox.com/)
-1. VSCALE (https://vscale.io/)
-1. Dynu API (https://www.dynu.com)
-
-
-**More APIs coming soon...**
-
-If your DNS provider is not on the supported list above, you can write your own DNS API script easily. If you do, please consider submitting a [Pull Request](https://github.com/Neilpang/acme.sh/pulls) and contribute it to the project.
-
-For more details: [How to use DNS API](dnsapi)
-
+**Please use dns api mode instead.**
 
 # 10. Issue ECC certificates
 
@@ -369,36 +393,60 @@ Valid values are:
 3. **ec-521 (secp521r1,  "ECDSA P-521", which is not supported by Let's Encrypt yet.)**
 
 
-# 11. How to renew the issued certs
+
+# 11. Issue Wildcard certificates
+
+It's simple, just give a wildcard domain as the `-d` parameter.
+
+```sh
+acme.sh  --issue -d example.com  -d *.example.com  --dns dns_cf
+```
+
+
+
+# 12. How to renew the certs
 
 No, you don't need to renew the certs manually. All the certs will be renewed automatically every **60** days.
 
-However, you can also force to renew any cert:
+However, you can also force to renew a cert:
 
-```
+```sh
 acme.sh --renew -d example.com --force
 ```
 
 or, for ECC cert:
 
-```
+```sh
 acme.sh --renew -d example.com --force --ecc
 ```
 
 
-# 12. How to upgrade `acme.sh`
+# 13. How to stop cert renewal
+
+To stop renewal of a cert, you can execute the following to remove the cert from the renewal list:
+
+```sh
+acme.sh --remove -d example.com [--ecc]
+```
+
+The cert/key file is not removed from the disk.
+
+You can remove the respective directory (e.g. `~/.acme.sh/example.com`) by yourself.
+
+
+# 14. How to upgrade `acme.sh`
 
 acme.sh is in constant development, so it's strongly recommended to use the latest code.
 
 You can update acme.sh to the latest code:
 
-```
+```sh
 acme.sh --upgrade
 ```
 
 You can also enable auto upgrade:
 
-```
+```sh
 acme.sh --upgrade --auto-upgrade
 ```
 
@@ -406,31 +454,30 @@ Then **acme.sh** will be kept up to date automatically.
 
 Disable auto upgrade:
 
-```
+```sh
 acme.sh --upgrade --auto-upgrade 0
 ```
 
 
-# 13. Issue a cert from an existing CSR
+# 15. Issue a cert from an existing CSR
 
 https://github.com/Neilpang/acme.sh/wiki/Issue-a-cert-from-existing-CSR
 
 
-# 14. Under the Hood
+# 16. Under the Hood
 
 Speak ACME language using shell, directly to "Let's Encrypt".
 
 TODO:
 
 
-# 15. Acknowledgments
+# 17. Acknowledgments
 
 1. Acme-tiny: https://github.com/diafygi/acme-tiny
 2. ACME protocol: https://github.com/ietf-wg-acme/acme
-3. Certbot: https://github.com/certbot/certbot
 
 
-# 16. License & Others
+# 18. License & Others
 
 License is GPLv3
 
@@ -439,7 +486,7 @@ Please Star and Fork me.
 [Issues](https://github.com/Neilpang/acme.sh/issues) and [pull requests](https://github.com/Neilpang/acme.sh/pulls) are welcome.
 
 
-# 17. Donate
+# 19. Donate
 Your donation makes **acme.sh** better:
 
 1. PayPal/Alipay(支付宝)/Wechat(微信): [https://donate.acme.sh/](https://donate.acme.sh/)
