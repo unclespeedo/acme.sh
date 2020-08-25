@@ -1,4 +1,4 @@
-FROM alpine:3.10
+FROM alpine:3.12
 
 RUN apk update -f \
   && apk --no-cache add -f \
@@ -15,7 +15,9 @@ RUN apk update -f \
 
 ENV LE_CONFIG_HOME /acme.sh
 
-ENV AUTO_UPGRADE 1
+ARG AUTO_UPGRADE=1
+
+ENV AUTO_UPGRADE $AUTO_UPGRADE
 
 #Install
 ADD ./ /install_acme.sh/
