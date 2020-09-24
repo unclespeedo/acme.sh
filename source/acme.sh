@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-VER=2.8.7
+VER=2.8.8
 
 PROJECT_NAME="acme.sh"
 
@@ -956,9 +956,9 @@ _dbase64() {
 _checkcert() {
   _cf="$1"
   if [ "$DEBUG" ]; then
-    openssl x509 -noout -text -in "$_cf"
+    ${ACME_OPENSSL_BIN:-openssl} x509 -noout -text -in "$_cf"
   else
-    openssl x509 -noout -text -in "$_cf" >/dev/null 2>&1
+    ${ACME_OPENSSL_BIN:-openssl} x509 -noout -text -in "$_cf" >/dev/null 2>&1
   fi
 }
 
@@ -3994,7 +3994,7 @@ _check_dns_entries() {
 _get_cert_issuers() {
   _cfile="$1"
   if _contains "$(${ACME_OPENSSL_BIN:-openssl} help crl2pkcs7 2>&1)" "Usage: crl2pkcs7"; then
-    ${ACME_OPENSSL_BIN:-openssl} crl2pkcs7 -nocrl -certfile $_cfile | openssl pkcs7 -print_certs -text -noout | grep 'Issuer:' | _egrep_o "CN *=[^,]*" | cut -d = -f 2
+    ${ACME_OPENSSL_BIN:-openssl} crl2pkcs7 -nocrl -certfile $_cfile | ${ACME_OPENSSL_BIN:-openssl} pkcs7 -print_certs -text -noout | grep 'Issuer:' | _egrep_o "CN *=[^,]*" | cut -d = -f 2
   else
     ${ACME_OPENSSL_BIN:-openssl} x509 -in $_cfile -text -noout | grep 'Issuer:' | _egrep_o "CN *=[^,]*" | cut -d = -f 2
   fi
@@ -4006,6 +4006,11 @@ _match_issuer() {
   _missuer="$2"
   _fissuers="$(_get_cert_issuers $_cfile)"
   _debug2 _fissuers "$_fissuers"
+  if _contains "$_fissuers" "$_missuer"; then
+    return 0
+  fi
+  _fissuers="$(echo "$_fissuers" | _lower_case)"
+  _missuer="$(echo "$_missuer" | _lower_case)"
   _contains "$_fissuers" "$_missuer"
 }
 
@@ -4709,7 +4714,7 @@ $_authorizations_map"
       return 1
     fi
     if [ -z "$Le_LinkOrder" ]; then
-      Le_LinkOrder="$(echo "$responseHeaders" | grep -i '^Location.*$' | _tail_n 1 | tr -d "\r\n" | cut -d ":" -f 2-)"
+      Le_LinkOrder="$(echo "$responseHeaders" | grep -i '^Location.*$' | _tail_n 1 | tr -d "\r\n \t" | cut -d ":" -f 2-)"
     fi
 
     _savedomainconf "Le_LinkOrder" "$Le_LinkOrder"
@@ -4973,7 +4978,7 @@ $_authorizations_map"
   fi
 }
 
-#in_out_cert   out_fullchain out out_ca
+#in_out_cert   out_fullchain   out_ca
 _split_cert_chain() {
   _certf="$1"
   _fullchainf="$2"
@@ -6430,7 +6435,8 @@ Commands:
   --cron                   Run cron job to renew all the certs.
   --set-notify             Set the cron notification hook, level or mode.
   --deactivate             Deactivate the domain authz, professional use.
-  --set-default-ca         Used with '--server', to set the default CA to use to use.
+  --set-default-ca         Used with '--server', Set the default CA to use.
+                           See: $_SERVER_WIKI
 
 
 Parameters:
