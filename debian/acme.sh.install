@@ -1,4 +1,2 @@
-deploy/ usr/share/acme.sh/
-dnsapi/ usr/share/acme.sh/
-notify/ usr/share/acme.sh/
+source/ usr/share/acme.sh/
 README.md usr/share/acme.sh/
