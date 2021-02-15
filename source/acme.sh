@@ -1040,14 +1040,9 @@ _createkey() {
     fi
   fi
 
-  __traditional=""
-  if _contains "$(${ACME_OPENSSL_BIN:-openssl} help genrsa 2>&1)" "-traditional"; then
-    __traditional="-traditional"
-  fi
-
   if _isEccKey "$length"; then
     _debug "Using ec name: $eccname"
-    if _opkey="$(${ACME_OPENSSL_BIN:-openssl} ecparam $__traditional -name "$eccname" -genkey 2>/dev/null)"; then
+    if _opkey="$(${ACME_OPENSSL_BIN:-openssl} ecparam -name "$eccname" -genkey 2>/dev/null)"; then
       echo "$_opkey" >"$f"
     else
       _err "error ecc key name: $eccname"
@@ -1055,6 +1050,10 @@ _createkey() {
     fi
   else
     _debug "Using RSA: $length"
+    __traditional=""
+    if _contains "$(${ACME_OPENSSL_BIN:-openssl} help genrsa 2>&1)" "-traditional"; then
+      __traditional="-traditional"
+    fi
     if _opkey="$(${ACME_OPENSSL_BIN:-openssl} genrsa $__traditional "$length" 2>/dev/null)"; then
       echo "$_opkey" >"$f"
     else
